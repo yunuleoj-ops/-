@@ -3,7 +3,7 @@
 // 닫힌 획은 지수급수, 열린 획은 현 분리 + 사인급수(DST-I, Task 5).
 // FFT를 쓰지 않는다 — DST-I는 라딕스-2 복소 FFT와 호환되지 않고, 항이 한 자릿수 규모라 이득도 없다.
 
-import type { Closure, Point } from "@/lib/geometry";
+import type { Closure, Point, Symmetry } from "@/lib/geometry";
 import { densify, fromComplex, resampleUniform, toComplex, type Complex } from "@/lib/resample";
 
 export type { Complex } from "@/lib/resample";
@@ -387,3 +387,42 @@ function fitOpen(samples: Complex[], arcLength: number, options?: FitOptions): S
   const { terms, stats } = selectAndFinalize(samples, candidates, tailEnergy, normOf(samples), arcLength, P, rebuild, options);
   return { kind: "open", z0, delta, terms, stats };
 }
+
+// ---- 대칭 연산자 (스펙 §1.7 / D10) ---------------------------------------
+// 복사본을 다시 적합하지 않는다. 대칭은 등거리변환이므로 계수 위의 선형(회전)
+// 또는 반선형(반사) 연산으로 정확히 유도된다 — 근사가 아니라 항등식이다.
+//
+// 부호 주의: z = conj(p − 중심) 이라 수학 좌표의 회전 방향이 화면과 반대다.
+// 교과서 부호 ω = e^(2πi/m) 을 그대로 쓰므로 applyOperator 의 복사본 k 는
+// transformPoint 의 복사본 (m − k) mod m 과 같은 그림이다. 순환군 궤도 {ω^k z} 는
+// 집합으로서 동일하므로 화면에 그려지는 마법진은 이 부호 때문에 달라지지 않는다.
+//
+// count 는 회전 수(stroke.rotationCount)다. 복사본 수(copiesFor 의 결과)가 아니다.
+
+const cMul = (a: Complex, b: Complex): Complex => ({
+  re: a.re * b.re - a.im * b.im,
+  im: a.re * b.im + a.im * b.re
+});
+
+// w·z. 회전은 지수 기저와 사인 기저 모두에서 인덱스를 건드리지 않는다.
+// terms 를 그대로 map 하므로 Task 4 가 정렬해 둔 진폭 내림차순이 유지된다.
+const mapLinear = (spectrum: Spectrum, w: Complex): Spectrum => {
+  if (spectrum.kind === "closed") {
+    return { ...spectrum, c0: cMul(w, spectrum.c0),
+      terms: spectrum.terms.map((term) => ({ n: term.n, ...cMul(w, term) })) };
+  }
+  if (spectrum.kind === "open") {
+    return { ...spectrum, z0: cMul(w, spectrum.z0), delta: cMul(w, spectrum.delta),
+      terms: spectrum.terms.map((term) => ({ n: term.n, ...cMul(w, term) })) };
+  }
+  return spectrum;
+};
+
+export const applyOperator = (spectrum: Spectrum, symmetry: Symmetry, count: number, copy: number): Spectrum => {
+  // 항등 분기는 transformPoint 의 항등 분기와 글자 그대로 같은 조건이어야 한다.
+  // 여기서 갈라지면 화면과 식이 갈라진다.
+  if (spectrum.kind === "point" || copy === 0 || symmetry === "free") return spectrum;
+  if (symmetry === "mirrorX" || symmetry === "mirrorY") return spectrum;   // Step 7에서 채운다
+  const angle = (Math.PI * 2 * copy) / count;
+  return mapLinear(spectrum, { re: Math.cos(angle), im: Math.sin(angle) });
+};
