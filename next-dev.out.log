@@ -1,0 +1,34 @@
+
+> arcana-drafter@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.23
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.153:3000
+
+ ✓ Starting...
+ ✓ Ready in 1197ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1715ms (545 modules)
+ GET / 200 in 1949ms
+ GET / 200 in 40ms
+ ✓ Compiled in 259ms (531 modules)
+ ✓ Compiled in 153ms (531 modules)
+ GET / 200 in 192ms
+ ✓ Compiled in 102ms (314 modules)
+ GET / 200 in 79ms
+ ✓ Compiled in 120ms (531 modules)
+ ✓ Compiled in 92ms (531 modules)
+ ✓ Compiled in 92ms (531 modules)
+ ✓ Compiled in 87ms (531 modules)
+ ✓ Compiled in 200ms (545 modules)
+ GET / 200 in 49ms
+ ✓ Compiled in 123ms (545 modules)
+ GET / 200 in 34ms
+ ✓ Compiled in 138ms (545 modules)
+ GET / 200 in 68ms
+ ✓ Compiled in 337ms (531 modules)
+ ✓ Compiled in 304ms (531 modules)
+ ✓ Compiled in 138ms (531 modules)
+ ✓ Compiled in 140ms (531 modules)
+ ✓ Compiled in 307ms (531 modules)

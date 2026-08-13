@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ARCANA DRAFTER",
+  title: "마법연산자",
   description: "Draw your own magic circle."
 };
 

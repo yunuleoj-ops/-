@@ -2,6 +2,7 @@
   "name": "arcana-drafter",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.12.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,10 +13,9 @@
     "@types/node": "22.13.4",
     "@types/react": "19.0.8",
     "@types/react-dom": "19.0.3",
-    "next": "15.1.6",
+    "next": "^15.5.23",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "typescript": "5.7.3"
-  },
-  "devDependencies": {}
+  }
 }
