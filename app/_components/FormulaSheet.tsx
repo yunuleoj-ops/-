@@ -7,6 +7,7 @@ import type { CircleAnalysis } from "@/lib/analysis";
 import { formatAccuracy, formatLatex, strokeExprTex, strokeLatexLine } from "@/lib/formatting";
 import CopyButtons from "@/app/_components/CopyButtons";
 import TeX from "@/app/_components/TeX";
+import { usePulseTurn } from "@/app/_components/usePulseTurn";
 import { STROKE_WIDTH } from "@/lib/geometry";
 import {
   accuracyOf, achievedTarget, baseRows, coefficientRows, FRAME_LINE, isCapped, legendTexLines, maxTermCount, operatorLabel,
@@ -30,6 +31,8 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
   // null(유효 획 0)은 달성이 아니라 "없음"이다(E4) — achievedTarget이 그 구분을 대신 짊어진다.
   const achieved = achievedTarget(analysis);
   const worst = analysis.worst;
+  // 겹친 그림에도 캔버스와 같은 파동이 흐른다 — 같은 마법진이니 같은 속도로 돈다.
+  const pulse = usePulseTurn(analysis.strokes.length);
 
   const jumpTo = (index: number) => {
     setFocus(index);
@@ -57,6 +60,11 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
         <svg viewBox="0 0 100 100" aria-label="원본 획 위에 재구성 곡선을 겹쳐 그린 그림">
           {originals.map((path) => <path key={`o-${path.key}`} className="sheet-original" d={path.d} style={{ strokeWidth: STROKE_WIDTH }} />)}
           {reconstructed.map((path) => <path key={`r-${path.key}`} className="sheet-recon" d={path.d} style={{ strokeWidth: STROKE_WIDTH }} />)}
+          {/* 파동은 원본 획 위로 흐른다. 재구성 곡선 위로 흘리면 항 수를 줄일 때 빛이 식과 함께 흔들려
+              "무엇이 원본인가"가 흐려진다. pathLength=100 정규화는 캔버스와 같다. */}
+          {pulse.step > 0 && originals.filter((path) => path.strokeIndex === pulse.index).map((path) =>
+            <path key={`p-${path.key}-${pulse.turn}`} className="stroke-pulse" d={path.d} pathLength={100}
+              style={{ animationDuration: `${pulse.step}s` }} />)}
         </svg>
         <figcaption>원본 획 위에 식이 그린 곡선을 겹쳤습니다</figcaption>
       </figure>
@@ -77,6 +85,11 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
         <div className="sheet-map">
           <svg viewBox="0 0 100 100" className={focus === null ? undefined : "focused"} aria-hidden="true">
             {originals.map((path) => <path key={path.key} className={focus === path.strokeIndex ? "map-path on" : "map-path"} d={path.d} style={{ strokeWidth: STROKE_WIDTH }} />)}
+            {/* 여기 파동은 차례가 아니라 손끝을 따른다 — 항목에 손을 올린 그 획만 계속 빛난다.
+                한 번에 한 획뿐이라 infinite 로 돌려도 캔버스에서와 같은 겹침이 생기지 않는다. */}
+            {focus !== null && pulse.step > 0 && originals.filter((path) => path.strokeIndex === focus).map((path) =>
+              <path key={`mp-${path.key}`} className="stroke-pulse loop" d={path.d} pathLength={100}
+                style={{ animationDuration: `${pulse.step}s` }} />)}
           </svg>
         </div>
         <ol className="sheet-list">

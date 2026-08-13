@@ -20,6 +20,7 @@
 .share-circle:disabled{opacity:.5}
 .share-circle{display:block;box-sizing:border-box;text-align:center;text-decoration:none}
 .card-action{display:contents}
+.stroke-pulse.loop{animation-iteration-count:infinite}
 .card-name{width:100%;margin:22px 0 8px;padding:2px 4px;border:0;border-bottom:1px dashed #c9b16b80;background:transparent;color:inherit;font:600 29px 'Playfair Display';text-align:center;cursor:text}
 .card-name:hover{border-bottom-color:var(--accent)}
 .card-name:focus{outline:0;border-bottom-color:var(--accent);background:#ffffff0d}
