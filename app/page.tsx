@@ -1,11 +1,12 @@
 "use client";
 
-import { CSSProperties, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, PointerEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { analyzeFitted, fitAll, type CircleAnalysis } from "@/lib/analysis";
 import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
 import { formatAccuracy, formatStructure, formatSummarySentence } from "@/lib/formatting";
-import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
+import { newId, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
+import { EMPTY_HISTORY, historyReducer } from "@/lib/history";
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
 import { loadDraft, saveDraft } from "@/lib/storage";
@@ -14,8 +15,8 @@ import FormulaSheet from "@/app/_components/FormulaSheet";
 import StrokeLayer from "@/app/_components/StrokeLayer";
 
 export default function Home() {
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [redoStack, setRedoStack] = useState<Stroke[]>([]);
+  const [history, dispatch] = useReducer(historyReducer, EMPTY_HISTORY);
+  const { strokes, redoStack } = history;
   const [active, setActive] = useState<Stroke | null>(null);
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [attributes, setAttributes] = useState<Attribute[]>(["light", "fire"]);
@@ -69,10 +70,10 @@ export default function Home() {
 
   // 냉시작 배치 적합만 유휴 시간으로 미룬다. requestIdleCallback 이 없는 브라우저는 setTimeout 으로 떨어진다.
   useEffect(() => {
-    // if (draft.length) 가드는 E20 이다. 로드가 실패해 빈 배열이 와도 setStrokes 를 부르지 않으므로
-    // 저장 effect 가 돌아 원본을 덮어쓰는 경로가 생기지 않는다. restored.current 만으로는
-    // requestIdleCallback 경로에서 첫 setStrokes 가 두 번째 렌더에 오므로 이 가드를 대신하지 못한다.
-    const restore = () => { const draft = loadDraft(); if (draft.length) setStrokes(draft); };
+    // E20: 불러오기가 실패해 빈 배열이 와도 이미 그린 것을 덮어쓰면 안 된다. restore 액션이 빈 배열을
+    // 무시하므로(lib/history.ts) 가드가 리듀서 안에 있다. restored.current 만으로는
+    // requestIdleCallback 경로에서 첫 갱신이 두 번째 렌더에 와 이 가드를 대신하지 못한다.
+    const restore = () => dispatch({ type: "restore", strokes: loadDraft() });
     if (typeof window.requestIdleCallback === "function") {
       const handle = window.requestIdleCallback(restore, { timeout: 200 });
       return () => window.cancelIdleCallback(handle);
@@ -102,10 +103,7 @@ export default function Home() {
     event.currentTarget.setPointerCapture(event.pointerId);
     if (tool === "eraser") {
       const target = eventPoint(event);
-      setStrokes((current) => {
-        const next = current.filter((stroke) => !stroke.points.some((point) => pointDistance(point, target) < 5));
-        setRedoStack([]); return next;
-      });
+      dispatch({ type: "eraseAt", point: target, radius: 5 });
       return;
     }
     // id는 이벤트 핸들러 안에서만 만든다. 렌더 중에 만들면 서버와 클라이언트가 다른 값을 내 hydration이 깨진다.
@@ -124,14 +122,13 @@ export default function Home() {
       // E2 입력단: 호길이 1.0 미만은 획이 아니라 탭이다. classifyClosure 가 이미 그 길이를 재고
       // !(L >= POINT_ARC_LENGTH) 일 때 "point" 를 돌려주므로 길이를 두 번 재지 않는다.
       if (closure !== "point") {
-        setStrokes((current) => [...current, { ...active, points, closure }]);
-        setRedoStack([]);
+        dispatch({ type: "commit", stroke: { ...active, points, closure } });
       }
     }
     setActive(null);
   };
-  const undo = () => setStrokes((current) => { if (!current.length) return current; const item = current[current.length - 1]; setRedoStack((redo) => [...redo, item]); return current.slice(0, -1); });
-  const redo = () => setRedoStack((current) => { if (!current.length) return current; const item = current[current.length - 1]; setStrokes((drawn) => [...drawn, item]); return current.slice(0, -1); });
+  const undo = () => dispatch({ type: "undo" });
+  const redo = () => dispatch({ type: "redo" });
   const saveCard = () => { localStorage.setItem("arcana-card-v1", JSON.stringify({ version: 2, strokes, attributes, metrics, savedAt: new Date().toISOString() })); setSaved(true); };
   // 링크에 마법진이 통째로 들어간다. 네이티브 공유 시트가 있으면 그쪽을, 없으면 클립보드를 쓴다.
   const shareCircle = async () => {
@@ -157,20 +154,24 @@ export default function Home() {
   return <main className={`arcana ${tone}`} style={{ "--accent": accent, "--accent-gradient": accentGradient, "--speed": speed === "slow" ? "18s" : speed === "fast" ? "4s" : speed === "stop" ? "0s" : "9s" } as CSSProperties}>
     <header className="site-header"><div className="logo"><span>✦</span> 마법<b>연산자</b></div><div className="student">MAGIC CIRCLE STUDIO <i /> 실시간 분석</div><button className="save-button" onClick={saveCard}>{saved ? "저장됨" : "임시 저장"}</button></header>
     <section className="workspace">
-      <aside className="tools panel">
-        <div className="panel-title">DRAW TOOLS <span>01</span></div>
-        <div className="tool-row"><button className={tool === "pen" ? "on" : ""} onClick={() => setTool("pen")}>✎ 펜</button><button className={tool === "eraser" ? "on" : ""} onClick={() => setTool("eraser")}>⌫ 지우개</button></div>
-        <div className="tool-row"><button onClick={undo} disabled={!strokes.length}>↶ 실행 취소</button><button onClick={redo} disabled={!redoStack.length}>↷ 다시 실행</button></div>
-        <button className="wipe" onClick={() => { setStrokes([]); setRedoStack([]); setSaved(false); }}>전체 지우기</button>
-        <div className="panel-title split">SYMMETRY <span>02</span></div>
-        <div className="symmetry-modes">
-          {([ ["free", "자유"], ["mirrorX", "좌우"], ["mirrorY", "상하"], ["rotate", "회전"] ] as [Symmetry, string][]).map(([id, label]) => <button key={id} onClick={() => setSymmetry(id)} className={symmetry === id ? "on" : ""}>{label}</button>)}
-        </div>
-        <div className="rotation"><span>회전 복사</span><select value={rotationCount} disabled={symmetry !== "rotate"} onChange={(event) => setRotationCount(Number(event.target.value))}>{[2, 3, 4, 6, 8].map((count) => <option key={count}>{count}</option>)}</select><span>회</span></div>
-        <label className="guide-toggle"><input type="checkbox" checked={guides} onChange={(event) => setGuides(event.target.checked)} /> 보조선 표시</label>
-      </aside>
-
       <section className="stage panel">
+        <div className="toolbar">
+          <div className="tool-group">
+            <button className={tool === "pen" ? "on" : ""} onClick={() => setTool("pen")}>✎ 펜</button>
+            <button className={tool === "eraser" ? "on" : ""} onClick={() => setTool("eraser")}>⌫ 지우개</button>
+          </div>
+          <div className="tool-group">
+            <button className="icon" onClick={undo} disabled={!strokes.length} aria-label="되돌리기" title="되돌리기">↶</button>
+            <button className="icon" onClick={redo} disabled={!redoStack.length} aria-label="다시 실행" title="다시 실행">↷</button>
+            <button onClick={() => { dispatch({ type: "clear" }); setSaved(false); }} disabled={!strokes.length}>전체 지우기</button>
+          </div>
+          <div className="tool-group">
+            {([ ["free", "자유"], ["mirrorX", "좌우"], ["mirrorY", "상하"], ["rotate", "회전"] ] as [Symmetry, string][]).map(([id, label]) => <button key={id} onClick={() => setSymmetry(id)} className={symmetry === id ? "on" : ""}>{label}</button>)}
+            <select aria-label="회전 복사 수" value={rotationCount} disabled={symmetry !== "rotate"} onChange={(event) => setRotationCount(Number(event.target.value))}>{[2, 3, 4, 6, 8].map((count) => <option key={count}>{count}</option>)}</select>
+            <span>회</span>
+          </div>
+          <label className="guide-toggle"><input type="checkbox" checked={guides} onChange={(event) => setGuides(event.target.checked)} /> 보조선</label>
+        </div>
         <div className="stage-bar"><span>LIVE CANVAS · AUTOMATIC ANALYSIS</span><span className="drawing-status">{tool === "eraser" ? "ERASER MODE" : "DRAWING MODE"}</span></div>
         <div className="canvas-wrap">
           <div className="particles" aria-hidden="true">{Array.from({ length: 22 }, (_, i) => <i key={i} style={{ "--i": i } as CSSProperties} />)}</div>
