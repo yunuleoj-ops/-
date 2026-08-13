@@ -252,3 +252,115 @@ describe("재샘플과 변환의 교환법칙 — T2", () => {
     expect(worst).toBeLessThan(TOL);   // 실측 2.31e-13 (호길이 차 최대 2.84e-13)
   });
 });
+
+// 인덱스를 −n 으로 뒤집지 않는 틀린 반사 규칙. 실제 코드에는 넣지 않는 음성 대조군이다.
+// u·conj(c) 를 인덱스 n 자리에 그대로 둔다.
+const mirrorWithoutIndexFlip = (spectrum: Spectrum, u: Complex): Spectrum => {
+  if (spectrum.kind !== "closed") return spectrum;
+  const act = (c: Complex): Complex => ({
+    re: u.re * c.re + u.im * c.im,
+    im: u.im * c.re - u.re * c.im
+  });
+  return { ...spectrum, c0: act(spectrum.c0),
+    terms: spectrum.terms.map((term) => ({ n: term.n, ...act(term) })) };
+};
+
+const MIRRORS: [Symmetry, Complex][] = [
+  ["mirrorX", { re: -1, im: 0 }],   // 화면 x→100−x · M z = −z̄
+  ["mirrorY", { re: 1, im: 0 }]     // 화면 y→100−y · M z =  z̄
+];
+
+describe("반사 — T9 / E9", () => {
+  it("fit(반사한 점들) 의 계수가 applyOperator(mirror) 와 같다", () => {
+    for (const [symmetry] of MIRRORS) {
+      for (const { name, points, closure } of FIXTURES) {
+        const refit = fitStroke(points.map((p) => transformPoint(p, symmetry, 2, 1)), closure);
+        const derived = applyOperator(fitStroke(points, closure), symmetry, 2, 1);
+        expect.soft(maxCoefError(refit, derived), `${symmetry} ${name}`).toBeLessThan(TOL);
+      }
+    }
+  });   // 실측 최악 2.74e-14 (mirrorX blob)
+
+  it("반사 복사본이 transformPoint 복사본과 점 단위로 같다", () => {
+    for (const [symmetry] of MIRRORS) {
+      for (const { name, spectrum } of fitAll()) {
+        const source = reconstruct(spectrum, Q);
+        for (let copy = 0; copy < 2; copy += 1) {
+          expect.soft(maxPointError(reconstruct(applyOperator(spectrum, symmetry, 2, copy), Q),
+            source.map((p) => transformPoint(p, symmetry, 2, copy))), `${symmetry} ${name} ${copy}`)
+            .toBeLessThan(TOL);
+        }
+      }
+    }
+  });   // 실측 최악 1.42e-14
+
+  it("원의 스펙트럼에서 인덱스가 −1 에서 +1 로 뒤집힌다", () => {
+    const base = fitStroke(circle(), "closed");
+    if (base.kind !== "closed") throw new Error("closed 여야 한다");
+    expect(base.terms).toHaveLength(1);        // T3: 완전한 원은 정확히 1항
+    expect(base.terms[0].n).toBe(-1);          // 화면 CW 로 도는 픽스처 → 수학 좌표에서 n = −1
+    const mirrored = applyOperator(base, "mirrorX", 2, 1);
+    if (mirrored.kind !== "closed") throw new Error("closed 여야 한다");
+    expect(mirrored.terms).toHaveLength(1);
+    expect(mirrored.terms[0].n).toBe(1);       // 여기가 뒤집히지 않으면 E9 버그다
+    expect(mirrored.terms[0].re).toBeCloseTo(-base.terms[0].re, 9);   // 실측 편차 0
+    expect(mirrored.terms[0].im).toBeCloseTo(base.terms[0].im, 9);
+  });
+
+  it("인덱스를 뒤집지 않으면 원과 비대칭 닫힌 획 둘 다에서 틀린다", () => {
+    for (const [symmetry, u] of MIRRORS) {
+      for (const points of [circle(), blob()]) {
+        const base = fitStroke(points, "closed");
+        const target = reconstruct(base, Q).map((p) => transformPoint(p, symmetry, 2, 1));
+        expect.soft(maxPointError(target, reconstruct(applyOperator(base, symmetry, 2, 1), Q)))
+          .toBeLessThan(TOL);                                                    // 실측 7.11e-15
+        expect.soft(maxPointError(target, reconstruct(mirrorWithoutIndexFlip(base, u), Q)))
+          .toBeGreaterThan(1);            // 실측 원 6.00e+1 · blob 4.74e+1
+      }
+    }
+  });
+
+  it("집합 비교는 이 버그를 못 잡는다 — 반사 테스트는 반드시 점 단위여야 한다", () => {
+    // 틀린 규칙은 c'_n = e^(2iφ)conj(c_n) 이므로 w(t) = e^(2iφ)conj(z(−t)) = right(1−t) 다.
+    // 즉 같은 곡선을 반대 방향으로 훑는다 — 어떤 집합 비교에도 걸리지 않는다.
+    for (const points of [circle(), blob()]) {
+      const base = fitStroke(points, "closed");
+      const right = reconstruct(applyOperator(base, "mirrorX", 2, 1), Q);
+      const wrong = reconstruct(mirrorWithoutIndexFlip(base, { re: -1, im: 0 }), Q);
+      expect.soft(hausdorff(right, wrong)).toBeLessThan(TOL);                    // 실측 3.18e-14
+      expect.soft(maxPointError(wrong, right.map((_, i) => right[(Q - i) % Q]))).toBeLessThan(TOL);
+      expect.soft(maxPointError(right, wrong)).toBeGreaterThan(1);               // 실측 6.00e+1
+    }
+  });
+
+  it("M ∘ M = I 이고 인덱스가 원래대로 돌아온다", () => {
+    const base = fitStroke(blob(), "closed");
+    if (base.kind !== "closed") throw new Error("closed 여야 한다");
+    for (const [symmetry] of MIRRORS) {
+      const once = applyOperator(base, symmetry, 2, 1);
+      const twice = applyOperator(once, symmetry, 2, 1);
+      if (twice.kind !== "closed") throw new Error("closed 여야 한다");
+      expect(maxPointError(reconstruct(twice, Q), reconstruct(base, Q))).toBeLessThan(TOL);
+      expect(twice.terms.map((t) => t.n)).toEqual(base.terms.map((t) => t.n));
+      // 한 번만 걸면 항등이 아니어야 한다 — 반사가 미구현일 때를 잡는다
+      expect(maxPointError(reconstruct(once, Q), reconstruct(base, Q))).toBeGreaterThan(1);
+    }
+  });   // 실측: M∘M 편차 0 · 한 번만 걸면 mirrorX 6.64e+1 · mirrorY 5.16e+1
+
+  it("열린 획은 사인이 실수 기저라 인덱스가 뒤집히지 않는다", () => {
+    const base = fitStroke(wave(), "open");
+    if (base.kind !== "open") throw new Error("open 이어야 한다");
+    expect(base.terms.map((t) => t.n)).toEqual([3, 6, 9]);   // 진폭 내림차순 저장(D-C)
+    const mirrored = applyOperator(base, "mirrorX", 2, 1);   // b_n ↦ −conj(b_n)
+    if (mirrored.kind !== "open") throw new Error("open 이어야 한다");
+    expect(mirrored.terms.map((t) => t.n)).toEqual(base.terms.map((t) => t.n));
+    mirrored.terms.forEach((term, i) => {
+      expect(term.re).toBeCloseTo(-base.terms[i].re, 9);
+      expect(term.im).toBeCloseTo(base.terms[i].im, 9);
+    });
+    expect(mirrored.z0.re).toBeCloseTo(-base.z0.re, 9);
+    expect(mirrored.z0.im).toBeCloseTo(base.z0.im, 9);
+    expect(mirrored.delta.re).toBeCloseTo(-base.delta.re, 9);
+    expect(mirrored.delta.im).toBeCloseTo(base.delta.im, 9);
+  });
+});

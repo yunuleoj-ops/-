@@ -418,11 +418,34 @@ const mapLinear = (spectrum: Spectrum, w: Complex): Spectrum => {
   return spectrum;
 };
 
+const cConj = (a: Complex): Complex => ({ re: a.re, im: -a.im });
+
+// e^(2iφ)·conj(z). 닫힘은 지수 기저라 인덱스가 −n 으로 뒤집히고,
+// 열림은 sin 이 실수 기저라 인덱스가 그대로다 (스펙 §1.5 현 분리의 부수 이득).
+// 원본 항 (n, c) 는 새 스펙트럼의 −n 자리에 e^(2iφ)·conj(c) 로 들어간다 —
+// c'_n = e^(2iφ)·conj(c_{−n}) 과 같은 말이고, 이렇게 쓰면 A 밖의 계수를 찾을 필요가 없다.
+// |c_n| 은 보존되므로 진폭 내림차순 저장 순서도 그대로다.
+//
+// E10: 후보 대역이 대칭 구간 |n| ≤ K_max 이므로 n = −P/2 별칭 빈은 선택되지 않는다.
+// 따라서 −n 사상이 범위 밖으로 나가는 경우가 없고 특수 케이스도 필요 없다.
+const mapAntilinear = (spectrum: Spectrum, u: Complex): Spectrum => {
+  if (spectrum.kind === "closed") {
+    return { ...spectrum, c0: cMul(u, cConj(spectrum.c0)),
+      terms: spectrum.terms.map((term) => ({ n: -term.n, ...cMul(u, cConj(term)) })) };
+  }
+  if (spectrum.kind === "open") {
+    return { ...spectrum, z0: cMul(u, cConj(spectrum.z0)), delta: cMul(u, cConj(spectrum.delta)),
+      terms: spectrum.terms.map((term) => ({ n: term.n, ...cMul(u, cConj(term)) })) };
+  }
+  return spectrum;
+};
+
 export const applyOperator = (spectrum: Spectrum, symmetry: Symmetry, count: number, copy: number): Spectrum => {
   // 항등 분기는 transformPoint 의 항등 분기와 글자 그대로 같은 조건이어야 한다.
   // 여기서 갈라지면 화면과 식이 갈라진다.
   if (spectrum.kind === "point" || copy === 0 || symmetry === "free") return spectrum;
-  if (symmetry === "mirrorX" || symmetry === "mirrorY") return spectrum;   // Step 7에서 채운다
+  if (symmetry === "mirrorX") return mapAntilinear(spectrum, { re: -1, im: 0 });   // M z = −z̄
+  if (symmetry === "mirrorY") return mapAntilinear(spectrum, { re: 1, im: 0 });    // M z =  z̄
   const angle = (Math.PI * 2 * copy) / count;
   return mapLinear(spectrum, { re: Math.cos(angle), im: Math.sin(angle) });
 };
