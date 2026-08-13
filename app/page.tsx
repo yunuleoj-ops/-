@@ -144,7 +144,10 @@ export default function Home() {
     try {
       const url = `${location.origin}/s/${await encodeShare({ strokes, attributes, name: cardName })}`;
       if (navigator.share) {
-        await navigator.share({ title: `마법연산자 · ${title}`, text: `위력 ${metrics.power} · ${metrics.grade}`, url });
+        // 주소만 넘긴다. 제목·설명을 함께 주면 공유 시트의 "복사"가 셋을 이어 붙여 복사하고,
+        // 그렇게 붙은 글자가 주소의 일부가 되어 받는 쪽에서 마법진을 읽지 못한다.
+        // 미리보기 제목과 그림은 링크 자체의 메타데이터가 이미 들고 있다.
+        await navigator.share({ url });
         setShareState("idle");
         return;
       }

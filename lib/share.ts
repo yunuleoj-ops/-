@@ -59,11 +59,18 @@ export async function encodeShare({ strokes, attributes, name }: SharePayload): 
   return toBase64Url(await gzip(JSON.stringify(payload)));
 }
 
+// 링크는 온전한 채로 도착하지 않는다. 공유 시트는 제목과 설명을 주소 뒤에 붙여 복사하고,
+// 메신저는 문장 부호를 물고 들어온다. base64url 알파벳 밖의 첫 글자에서 자르면 그 전부가 걸러진다 —
+// 붙은 글자 하나 때문에 마법진이 통째로 "소실"되는 것이 사용자가 겪는 실패다.
+const BASE64URL_HEAD = /^[A-Za-z0-9_-]+/;
+
 // 어떤 입력에도 예외를 던지지 않는다. 읽을 수 없으면 null이고, 호출부는 그것만 처리하면 된다.
 export async function decodeShare(text: string | undefined | null): Promise<SharePayload | null> {
   if (!text) return null;
+  const head = BASE64URL_HEAD.exec(text.trim());
+  if (!head) return null;
   try {
-    const parsed: unknown = JSON.parse(await gunzip(fromBase64Url(text)));
+    const parsed: unknown = JSON.parse(await gunzip(fromBase64Url(head[0])));
     if (!Array.isArray(parsed) || parsed[0] !== FORMAT) return null;
     const [, rawAttributes, rawStrokes, rawName] = parsed as [number, unknown, unknown, unknown];
     if (!Array.isArray(rawStrokes)) return null;

@@ -33,6 +33,24 @@ describe("공유 링크의 카드 이름", () => {
   });
 });
 
+describe("훼손된 링크", () => {
+  const strokes = [strokeOf(arcPoints(360, 30, 33))];
+
+  test("주소 뒤에 붙은 글자는 잘라 내고 읽는다 — 공유 시트가 제목·설명을 이어 붙인다", async () => {
+    const encoded = await encodeShare({ strokes, attributes: ["light"], name: "불의 고리" });
+    for (const tail of [" 위력 266 · 초월", "%20마법연산자", ")", ".", "\n"]) {
+      const decoded = await decodeShare(encoded + tail);
+      expect(decoded?.name, tail).toBe("불의 고리");
+    }
+  });
+
+  test("앞이 잘린 링크는 되살리지 않는다 — 읽을 수 없는 것은 읽을 수 없다고 한다", async () => {
+    const encoded = await encodeShare({ strokes, attributes: ["light"] });
+    expect(await decodeShare(encoded.slice(8))).toBeNull();
+    expect(await decodeShare("!!!")).toBeNull();
+  });
+});
+
 describe("decodeShare 의 closure", () => {
   test("링크로 받은 원은 closed, 직선은 open, 한 점은 point 로 복원된다", async () => {
     const strokes = [
