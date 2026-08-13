@@ -3,10 +3,11 @@
 import { CSSProperties, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
-import { copiesFor, newId, pathFor, pointDistance, simplify, SIMPLIFY_TOLERANCE, STROKE_WIDTH, transformPoint, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
+import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
 import { getMetrics } from "@/lib/metrics";
 import { encodeShare } from "@/lib/share";
 import { loadDraft, saveDraft } from "@/lib/storage";
+import StrokeLayer from "@/app/_components/StrokeLayer";
 
 // E2: 점 하나를 톡 찍은 것은 획이 아니다. 100 단위 뷰박스에서 호길이 1.0은 눈에 보이지도 않는다.
 const MIN_STROKE_LENGTH = 1;
@@ -158,7 +159,7 @@ export default function Home() {
           <svg className="magic-canvas" viewBox="0 0 100 100" onPointerDown={startStroke} onPointerMove={addPoint} onPointerUp={endStroke} onPointerCancel={endStroke} aria-label="마법진 그리기 캔버스">
             <defs><linearGradient id="arcana-gradient" x1="0" y1="0" x2="1" y2="1">{selectedColors.map((tone, index) => <stop key={`${tone}-${index}`} offset={`${selectedColors.length === 1 ? 0 : (index / (selectedColors.length - 1)) * 100}%`} stopColor={tone} />)}</linearGradient><filter id="magic-glow"><feGaussianBlur stdDeviation="0.65" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
             {guides && <g className="guides"><circle cx="50" cy="50" r="44" /><circle cx="50" cy="50" r="31" />{Array.from({ length: 8 }, (_, i) => <line key={i} x1="50" y1="5" x2="50" y2="95" transform={`rotate(${i * 45} 50 50)`} />)}<path d="M50 15L58 41L85 41L63 57L71 85L50 68L29 85L37 57L15 41L42 41Z" /></g>}
-            {displayStrokes.flatMap((stroke, index) => Array.from({ length: copiesFor(stroke.symmetry, stroke.rotationCount) }, (_, copy) => <path key={`${index}-${copy}`} className="draw-stroke" d={pathFor(stroke.points.map((point) => transformPoint(point, stroke.symmetry, stroke.rotationCount, copy)))} style={{ stroke: "url(#arcana-gradient)", strokeWidth: STROKE_WIDTH }} />))}
+            {displayStrokes.map((stroke) => <StrokeLayer key={stroke.id} stroke={stroke} />)}
             <circle className="core" cx="50" cy="50" r="1.5" />
           </svg>
           <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>

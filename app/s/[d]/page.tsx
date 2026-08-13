@@ -56,7 +56,7 @@ export default async function SharePage({ params }: Params) {
           </linearGradient>
         </defs>
         {strokes.flatMap((stroke, index) => strokeCopies(stroke).map((points, copy) =>
-          <path key={`${index}-${copy}`} d={pathFor(points)} fill="none" strokeLinecap="round" strokeLinejoin="round"
+          <path key={`${index}-${copy}`} d={pathFor(points, stroke.closure === "closed")} fill="none" strokeLinecap="round" strokeLinejoin="round"
             style={{ stroke: "url(#share-gradient)", strokeWidth: STROKE_WIDTH }} />))}
         <circle cx="50" cy="50" r="1.5" fill="var(--accent)" />
       </svg>

@@ -38,7 +38,7 @@ export default async function OgImage({ params }: { params: Promise<{ d: string 
 
   const metrics = getMetrics(shared.strokes);
   const colors = shared.attributes.map((id) => ATTRIBUTES[id].accent);
-  const paths = shared.strokes.flatMap((stroke) => strokeCopies(stroke).map((points) => pathFor(points)));
+  const paths = shared.strokes.flatMap((stroke) => strokeCopies(stroke).map((points) => pathFor(points, stroke.closure === "closed")));
   const backdrop = toneOf(shared.attributes) === "dark"
     ? "radial-gradient(circle at 30% 40%, #30213a 0%, #1a1422 45%, #0d0a11 100%)"
     : "radial-gradient(circle at 30% 40%, #35473f 0%, #1b2726 45%, #0d1112 100%)";
