@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { densify, resampleUniform, toComplex, type Complex } from "@/lib/resample";
-import { ABS_FLOOR, T_MAX, amplitude, bandLimit, dftClosed, fitStroke, normOf, sampleCount, type FitOptions } from "@/lib/fourier";
+import { ABS_FLOOR, T_MAX, amplitude, bandLimit, dftClosed, fitStroke, normOf, overlayPointCount, reconstruct, sampleCount, truncate, type FitOptions } from "@/lib/fourier";
 import type { Point } from "@/lib/geometry";
 
 // ── 픽스처: 캔버스 좌표(0..100, y 아래로 증가) 위의 닫힌 도형 제어점 ──
@@ -314,5 +314,66 @@ describe("국소 꺾임 보호", () => {
     expect(capped.terms).toHaveLength(5);
     expect(capped.stats.capped).toBe(true);
     expect(capped.stats.accuracy).toBeCloseTo(0.9813628, 5);
+  });
+});
+
+describe("항 수 슬라이더와 오버레이", () => {
+  it("truncate는 재변환 없이 부분집합의 오차를 다시 센다", () => {
+    const fit = closedFit(PENTAGRAM);
+    let previous = Infinity;
+    for (let count = 0; count <= fit.terms.length; count += 1) {
+      const view = truncate(fit, count);
+      if (view.kind !== "closed") throw new Error("닫힌 스펙트럼이 아니다");
+      expect(view.terms).toHaveLength(count);
+      expect(view.stats.rmsError).toBeLessThanOrEqual(previous + 1e-12);
+      previous = view.stats.rmsError;
+    }
+    const empty = truncate(fit, 0);
+    if (empty.kind !== "closed") throw new Error("닫힌 스펙트럼이 아니다");
+    expect(empty.stats.rmsError).toBeCloseTo(fit.stats.normS, 10);
+    expect(empty.stats.accuracy).toBe(0);
+    expect(truncate(fit, fit.terms.length)).toBe(fit);      // 전량이면 같은 객체
+  });
+
+  it("truncate는 범위를 벗어난 값을 자르고 point는 그대로 돌려준다", () => {
+    const fit = closedFit(PENTAGRAM);
+    expect(truncate(fit, 999)).toBe(fit);
+    const none = truncate(fit, -3);
+    if (none.kind !== "closed") throw new Error("닫힌 스펙트럼이 아니다");
+    expect(none.terms).toHaveLength(0);
+    const degenerate = fitStroke([{ x: 50, y: 50 }, { x: 50, y: 50 }], "point");
+    expect(truncate(degenerate, 3)).toBe(degenerate);
+  });
+
+  it("truncate(k)와 maxTerms:k 적합은 같은 항 집합·같은 오차를 낸다", () => {
+    // 이 등식이 성립하는 이유는 terms 가 진폭 내림차순이기 때문이다(D-C).
+    // n 오름차순으로 재정렬하면 여기가 즉시 빨강이 된다.
+    const fit = closedFit(SQUARE);
+    const view = truncate(fit, 6);
+    if (view.kind !== "closed") throw new Error("닫힌 스펙트럼이 아니다");
+    const refit = closedFit(SQUARE, { maxTerms: 6 });
+    expect(view.terms.map((term) => term.n)).toEqual([-1, 3, -5, 7, -9, 11]);
+    expect(view.terms.map((term) => term.n)).toEqual(refit.terms.map((term) => term.n));
+    expect(view.stats.rmsError).toBeCloseTo(refit.stats.rmsError, 9);
+    expect(view.stats.accuracy).toBeCloseTo(refit.stats.accuracy, 9);
+  });
+
+  it("reconstruct는 q개 점을 캔버스 좌표로 돌려준다", () => {
+    const fit = closedFit(CIRCLE);
+    const drawn = reconstruct(fit, 512);
+    expect(drawn).toHaveLength(512);
+    expect(drawn[0].x).toBeCloseTo(80, 2);        // 실측 79.997991
+    expect(drawn[0].y).toBeCloseTo(50, 2);        // 실측 50.000510
+    for (const point of drawn) expect(Math.hypot(point.x - 50, point.y - 50)).toBeCloseTo(30, 2);
+    expect(reconstruct(fit, 0)).toEqual([]);
+    expect(reconstruct(fitStroke([], "closed"), 64)).toEqual([]);
+  });
+
+  it("오버레이 점 수는 clamp(8·max|n|, 64, 512)", () => {
+    expect(overlayPointCount(closedFit(CIRCLE))).toBe(64);        // max|n| = 1
+    expect(overlayPointCount(closedFit(SQUARE))).toBe(136);       // max|n| = 17
+    expect(overlayPointCount(closedFit(HEXAGON))).toBe(136);      // max|n| = 17
+    expect(overlayPointCount(closedFit(PENTAGRAM))).toBe(288);    // max|n| = 36
+    expect(overlayPointCount(fitStroke([], "closed"))).toBe(0);   // 퇴화 획은 오버레이에서 걸러진다
   });
 });

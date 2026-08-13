@@ -4,7 +4,7 @@
 // FFT를 쓰지 않는다 — DST-I는 라딕스-2 복소 FFT와 호환되지 않고, 항이 한 자릿수 규모라 이득도 없다.
 
 import type { Closure, Point } from "@/lib/geometry";
-import { densify, resampleUniform, toComplex, type Complex } from "@/lib/resample";
+import { densify, fromComplex, resampleUniform, toComplex, type Complex } from "@/lib/resample";
 
 export type { Complex } from "@/lib/resample";
 
@@ -229,4 +229,56 @@ export function fitStroke(points: Point[], closure: Closure, options?: FitOption
   // Task 5가 이 한 줄을 `return closed ? fitClosed(...) : fitOpen(samples, length, options);` 로 바꾼다.
   if (!closed) throw new Error("fitStroke: open stroke fitting lands in Task 5");
   return fitClosed(samples, length, options);
+}
+
+// 임의 t 에서의 z(t) = c₀ + Σ c_n e^(2πint). 표본 격자를 벗어나므로 표 조회가 아니라 직접 계산한다.
+const evaluateClosed = (c0: Complex, terms: Term[], t: number): Complex => {
+  let re = c0.re;
+  let im = c0.im;
+  for (const term of terms) {
+    const angle = Math.PI * 2 * term.n * t;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    re += term.re * cos - term.im * sin;
+    im += term.re * sin + term.im * cos;
+  }
+  return { re, im };
+};
+
+// 항 수 슬라이더용. 계수는 항 개수와 무관하게 정해지므로 변환을 다시 돌리지 않는다.
+// terms 가 진폭 내림차순이므로 slice(0, k) 가 곧 "진폭 상위 k개"다(D-C).
+// maxError는 표본이 있어야 다시 잴 수 있는데 Spectrum은 표본을 들고 다니지 않는다 —
+// 잘라낸 스펙트럼의 maxError는 적합 시점 값을 물려받으며, 화면에 표시하지 않는다.
+export function truncate(spectrum: Spectrum, termCount: number): Spectrum {
+  // Task 5(D-K)가 여기에 "open" 분기를 넣는다: 같은 슬라이스 + (P/(2(P+1)))|b_n|² 단위의 파스발 재계산.
+  if (spectrum.kind !== "closed") return spectrum;
+  const count = Math.max(0, Math.min(spectrum.terms.length, Math.floor(termCount)));
+  if (count === spectrum.terms.length) return spectrum;
+  const terms = spectrum.terms.slice(0, count);
+  let tail = spectrum.stats.normS * spectrum.stats.normS;
+  for (const term of terms) tail -= energyOf(term);
+  const rmsError = Math.sqrt(Math.max(0, tail));
+  const accuracy = spectrum.stats.normS > 0 ? clamp01(1 - rmsError / spectrum.stats.normS) : 1;
+  return { ...spectrum, terms, stats: { ...spectrum.stats, rmsError, accuracy, capped: false } };
+}
+
+// 오버레이용 곡선. 닫힌 획이므로 t = 0..(q−1)/q, 끝점을 중복하지 않는다(렌더가 Z로 닫는다).
+export function reconstruct(spectrum: Spectrum, q: number): Point[] {
+  // Task 5(D-K)가 여기에 "open" 분기를 넣는다: t = j/(q−1), j = 0..q−1 로 같은 q개를 돌려준다.
+  // 그게 빠지면 모달의 재구성 오버레이가 모든 열린 획에서 빈 화면이 된다.
+  if (spectrum.kind !== "closed") return [];
+  const count = Math.floor(q);
+  if (count < 1) return [];
+  const out: Point[] = [];
+  for (let j = 0; j < count; j += 1) out.push(fromComplex(evaluateClosed(spectrum.c0, spectrum.terms, j / count)));
+  return out;
+}
+
+// Q = clamp(8·max|n|, 64, 512). 최고 조화를 주기당 8점으로 해상한다.
+// 오버레이 점 수의 유일한 구현이다 — Task 10은 overlayQ 를 따로 만들지 않고 이것을 import한다(4-B).
+export function overlayPointCount(spectrum: Spectrum): number {
+  if (spectrum.kind === "point") return 0;
+  let top = 1;
+  for (const term of spectrum.terms) top = Math.max(top, Math.abs(term.n));
+  return Math.max(64, Math.min(512, 8 * top));
 }
