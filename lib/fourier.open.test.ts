@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Point } from "@/lib/geometry";
 import { densify, resampleUniform, toComplex, type Complex } from "@/lib/resample";
-import { ABS_FLOOR, T_MAX, fitStroke, type FitOptions, type Spectrum, type Term } from "@/lib/fourier";
+import { ABS_FLOOR, T_MAX, fitStroke, overlayPointCount, reconstruct, truncate, type FitOptions, type Spectrum, type Term } from "@/lib/fourier";
 
 // ---- 픽스처: 전부 결정적. 난수도 스냅샷도 쓰지 않는다 ----
 const straightPoints = (a: Point, b: Point, count = 2): Point[] =>
@@ -206,5 +206,92 @@ describe("fitStroke — 열린 획", () => {
     // 잔차가 매끄러운 획은 발동하지 않는다 — 성장 규칙이 항상 켜지면 직선 0항이 무너진다.
     const smooth = fitOpenStroke(arcPoints(90));
     expect(smooth.stats.maxError).toBeLessThanOrEqual(3 * smooth.stats.rmsError);
+  });
+});
+describe("truncate · reconstruct — 열린 획", () => {
+  it("truncate는 진폭 상위 k항만 남기고 오차를 다시 센다", () => {
+    for (const shape of shapes) {
+      const fit = fitOpenStroke(shape.points);
+      let previous = Infinity;
+      for (let count = 0; count <= fit.terms.length; count += 1) {
+        const view = truncate(fit, count);
+        if (view.kind !== "open") throw new Error("열린 스펙트럼이 아니다");
+        const label = `${shape.name} ${count}항`;
+        expect(view.terms, label).toEqual(fit.terms.slice(0, count));   // 진폭 상위 k개, 재정렬 없음
+        expect(view.stats.rmsError, label).toBeLessThanOrEqual(previous + 1e-12);
+        expect(view.z0, label).toBe(fit.z0);        // 아핀 항은 항 수와 무관하다 — 슬라이더가 끝점을 흔들지 않는 근거
+        expect(view.delta, label).toBe(fit.delta);
+        expect(view.stats.capped, label).toBe(false);
+        previous = view.stats.rmsError;
+      }
+      expect(truncate(fit, fit.terms.length)).toBe(fit);   // 전량이면 같은 객체
+      expect(truncate(fit, 999)).toBe(fit);
+      const none = truncate(fit, -3);
+      if (none.kind !== "open") throw new Error("열린 스펙트럼이 아니다");
+      expect(none.terms).toHaveLength(0);
+    }
+    // 닫힘과 달리 0항 오차는 normS 가 아니다 — z₀ + Δt 가 이미 획의 상당 부분을 설명하고 있다.
+    // 이 차이를 놓치고 normS² 에서 빼면 열린 획의 슬라이더 정확도가 전 구간 거짓이 된다.
+    const semi = fitOpenStroke(arcPoints(180));
+    const zero = truncate(semi, 0);
+    if (zero.kind !== "open") throw new Error("열린 스펙트럼이 아니다");
+    expect(zero.stats.rmsError).toBeCloseTo(21.6332, 3);
+    expect(zero.stats.accuracy).toBeCloseTo(0.068178, 5);
+    expect(semi.stats.normS).toBeCloseTo(23.2161, 3);
+  });
+
+  it("truncate(k)와 maxTerms:k 적합이 같은 항·같은 오차를 낸다", () => {
+    for (const shape of shapes) {
+      const fit = fitOpenStroke(shape.points);
+      for (let count = 1; count < fit.terms.length; count += 1) {
+        const view = truncate(fit, count);
+        const refit = fitOpenStroke(shape.points, { maxTerms: count });
+        if (view.kind !== "open") throw new Error("열린 스펙트럼이 아니다");
+        const label = `${shape.name} ${count}항`;
+        expect(view.terms.map((term) => term.n), label).toEqual(refit.terms.map((term) => term.n));
+        expect(view.stats.rmsError, label).toBeCloseTo(refit.stats.rmsError, 9);
+        expect(view.stats.accuracy, label).toBeCloseTo(refit.stats.accuracy, 9);
+      }
+    }
+  });
+
+  it("reconstruct는 끝점을 포함한 q개를 돌려준다", () => {
+    for (const shape of shapes) {
+      const fit = fitOpenStroke(shape.points);
+      const q = overlayPointCount(fit);
+      const drawn = reconstruct(fit, q);
+      expect(drawn, shape.name).toHaveLength(q);
+      // 같은 t 격자(j/(q−1))에서 원곡선을 뽑아 점대점으로 비교한다.
+      const { poly, length } = densify(shape.points, false);
+      const truth = resampleUniform(poly, length, q - 1, false);
+      expect(truth, shape.name).toHaveLength(q);
+      let worst = 0;
+      for (let i = 0; i < q; i += 1) worst = Math.max(worst, Math.hypot(drawn[i].x - truth[i].x, drawn[i].y - truth[i].y));
+      expect(Math.hypot(drawn[0].x - truth[0].x, drawn[0].y - truth[0].y), shape.name).toBeLessThan(1e-12);
+      expect(Math.hypot(drawn[q - 1].x - truth[q - 1].x, drawn[q - 1].y - truth[q - 1].y), shape.name).toBeLessThan(1e-12);
+      expect(worst, shape.name).toBeLessThanOrEqual(fit.stats.maxError * 1.05 + 1e-9);   // 실측 비 0.975 ~ 1.001
+      // 슬라이더를 1항으로 내려도 끝점은 그대로다 — 오버레이가 획 끝에서 튀지 않는 근거.
+      const one = reconstruct(truncate(fit, 1), q);
+      expect(Math.hypot(one[0].x - truth[0].x, one[0].y - truth[0].y), shape.name).toBeLessThan(1e-12);
+      expect(Math.hypot(one[q - 1].x - truth[q - 1].x, one[q - 1].y - truth[q - 1].y), shape.name).toBeLessThan(1e-12);
+    }
+    const fit = fitOpenStroke(arcPoints(180));
+    expect(reconstruct(fit, 0)).toEqual([]);
+    expect(reconstruct(fit, 1)).toEqual([{ x: 80, y: 50 }]);   // q = 1 은 0으로 나누지 않고 시작점만
+    expect(reconstruct(fit, 64)).toHaveLength(64);
+  });
+
+  it("퇴화 획은 truncate·reconstruct를 그대로 통과한다", () => {
+    // 새 동작을 요구하지 않는 가드다. 이 스텝이 두 함수의 첫 줄을 갈아끼우므로 point 경로가 살아 있는지 잡아 둔다.
+    const degenerate = fitStroke(Array.from({ length: 12 }, () => ({ x: 50, y: 50 })), "open");
+    expect(degenerate.kind).toBe("point");
+    expect(truncate(degenerate, 3)).toBe(degenerate);
+    expect(reconstruct(degenerate, 64)).toEqual([]);
+    expect(overlayPointCount(degenerate)).toBe(0);
+    // D-E: point 의 length 는 호길이다. 열림으로 들어와도 point 로 떨어지면 여기서 걸러진다.
+    const asPoint = fitStroke(arcPoints(180), "point");
+    if (asPoint.kind !== "point") throw new Error("point 가 아니다");
+    expect(asPoint.length).toBeCloseTo(94.2438, 3);
+    expect(reconstruct(asPoint, 64)).toEqual([]);
   });
 });

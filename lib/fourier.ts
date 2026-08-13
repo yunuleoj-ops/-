@@ -244,13 +244,36 @@ const evaluateClosed = (c0: Complex, terms: Term[], t: number): Complex => {
   return { re, im };
 };
 
+// 열린 획의 슬라이더용. 닫힘은 S² 에서 선택 항 에너지를 빼지만 열림은 S 가 잔차 에너지가 아니다
+// (z₀ + Δt 가 이미 제거되어 있다). 대신 "버린 항의 에너지를 rmsError² 에 도로 더한다" —
+// 같은 파스발의 다른 표현이고, 이쪽만 Spectrum 이 실제로 들고 있는 값(stats.P, stats.rmsError, terms)으로 닫힌다.
+function truncateOpen(spectrum: Extract<Spectrum, { kind: "open" }>, termCount: number): Spectrum {
+  const count = Math.max(0, Math.min(spectrum.terms.length, Math.floor(termCount)));
+  if (count === spectrum.terms.length) return spectrum;
+  const { P, normS, rmsError } = spectrum.stats;
+  const scale = P / (2 * (P + 1));
+  let tail = rmsError * rmsError;
+  for (let index = count; index < spectrum.terms.length; index += 1) tail += scale * energyOf(spectrum.terms[index]);
+  const nextRms = Math.sqrt(Math.max(0, tail));
+  return {
+    ...spectrum,   // z0 와 delta 를 참조 그대로 물려준다 — 항 수와 무관하게 끝점이 고정된다
+    terms: spectrum.terms.slice(0, count),
+    stats: {
+      ...spectrum.stats,
+      rmsError: nextRms,
+      accuracy: normS > 0 ? clamp01(1 - nextRms / normS) : 1,
+      capped: false
+    }
+  };
+}
+
 // 항 수 슬라이더용. 계수는 항 개수와 무관하게 정해지므로 변환을 다시 돌리지 않는다.
 // terms 가 진폭 내림차순이므로 slice(0, k) 가 곧 "진폭 상위 k개"다(D-C).
 // maxError는 표본이 있어야 다시 잴 수 있는데 Spectrum은 표본을 들고 다니지 않는다 —
 // 잘라낸 스펙트럼의 maxError는 적합 시점 값을 물려받으며, 화면에 표시하지 않는다.
 export function truncate(spectrum: Spectrum, termCount: number): Spectrum {
-  // Task 5(D-K)가 여기에 "open" 분기를 넣는다: 같은 슬라이스 + (P/(2(P+1)))|b_n|² 단위의 파스발 재계산.
-  if (spectrum.kind !== "closed") return spectrum;
+  if (spectrum.kind === "open") return truncateOpen(spectrum, termCount);
+  if (spectrum.kind !== "closed") return spectrum;   // point 는 자를 것이 없다
   const count = Math.max(0, Math.min(spectrum.terms.length, Math.floor(termCount)));
   if (count === spectrum.terms.length) return spectrum;
   const terms = spectrum.terms.slice(0, count);
@@ -261,14 +284,31 @@ export function truncate(spectrum: Spectrum, termCount: number): Spectrum {
   return { ...spectrum, terms, stats: { ...spectrum.stats, rmsError, accuracy, capped: false } };
 }
 
-// 오버레이용 곡선. 닫힌 획이므로 t = 0..(q−1)/q, 끝점을 중복하지 않는다(렌더가 Z로 닫는다).
+// z(t) = z₀ + Δ·t + Σ b_n sin(πnt). 오버레이용이라 테이블 없이 직접 sin 을 부른다 — q ≤ 512, 항 ≤ 24.
+const evaluateOpen = (z0: Complex, delta: Complex, terms: Term[], t: number): Complex => {
+  let re = z0.re + t * delta.re;
+  let im = z0.im + t * delta.im;
+  for (const term of terms) {
+    const basis = Math.sin(Math.PI * term.n * t);
+    re += term.re * basis;
+    im += term.im * basis;
+  }
+  return { re, im };
+};
+
+// 오버레이용 곡선. 닫힘은 t = j/q 로 끝점을 중복하지 않고(렌더가 Z로 닫는다),
+// 열림은 t = j/(q−1) 로 양 끝점을 포함한다. 개수는 둘 다 q 개다 — 호출부가 kind 를 몰라도 되게.
 export function reconstruct(spectrum: Spectrum, q: number): Point[] {
-  // Task 5(D-K)가 여기에 "open" 분기를 넣는다: t = j/(q−1), j = 0..q−1 로 같은 q개를 돌려준다.
-  // 그게 빠지면 모달의 재구성 오버레이가 모든 열린 획에서 빈 화면이 된다.
-  if (spectrum.kind !== "closed") return [];
   const count = Math.floor(q);
-  if (count < 1) return [];
+  if (spectrum.kind === "point" || count < 1) return [];
   const out: Point[] = [];
+  if (spectrum.kind === "open") {
+    const last = count > 1 ? count - 1 : 1;   // q = 1 에서 0으로 나누지 않는다
+    for (let j = 0; j < count; j += 1) {
+      out.push(fromComplex(evaluateOpen(spectrum.z0, spectrum.delta, spectrum.terms, j / last)));
+    }
+    return out;
+  }
   for (let j = 0; j < count; j += 1) out.push(fromComplex(evaluateClosed(spectrum.c0, spectrum.terms, j / count)));
   return out;
 }
