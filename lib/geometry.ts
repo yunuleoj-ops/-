@@ -33,11 +33,14 @@ export const simplify = (points: Point[], tolerance: number): Point[] => {
 };
 
 // Catmull-Rom 스플라인을 큐빅 베지어로 옮긴다. 제어점을 지나는 곡선이라 그린 모양이 유지된다.
-export const pathFor = (points: Point[]) => {
+// closed면 마지막 점 → 첫 점을 직선 현으로 닫는다(Z). 스펙 §1.2: 정확도의 진리값은 화면에
+// 그려진 곡선이므로, 닫힘으로 판정된 획은 화면에서도 실제로 닫혀 있어야 분석과 그림이 갈라지지 않는다.
+export const pathFor = (points: Point[], closed = false) => {
   if (!points.length) return "";
+  const close = closed ? " Z" : "";
   const move = `M${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
-  if (points.length === 1) return move;
-  if (points.length === 2) return `${move} L${points[1].x.toFixed(2)} ${points[1].y.toFixed(2)}`;
+  if (points.length === 1) return `${move}${close}`;
+  if (points.length === 2) return `${move} L${points[1].x.toFixed(2)} ${points[1].y.toFixed(2)}${close}`;
   let path = move;
   for (let i = 0; i < points.length - 1; i += 1) {
     const previous = points[i - 1] ?? points[i];
@@ -47,7 +50,7 @@ export const pathFor = (points: Point[]) => {
     const c2x = end.x - (next.x - start.x) / 6; const c2y = end.y - (next.y - start.y) / 6;
     path += ` C${c1x.toFixed(2)} ${c1y.toFixed(2)} ${c2x.toFixed(2)} ${c2y.toFixed(2)} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
   }
-  return path;
+  return `${path}${close}`;
 };
 
 // 화면에 그려지는 것과 같은 곡선 위에서 점을 다시 뽑는다. 분석은 제어점이 아니라 이 점들을 쓴다.
