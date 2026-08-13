@@ -9,6 +9,7 @@ import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Stroke, type S
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
 import { loadDraft, saveDraft } from "@/lib/storage";
+import ArcanaCard from "@/app/_components/ArcanaCard";
 import FormulaSheet from "@/app/_components/FormulaSheet";
 import StrokeLayer from "@/app/_components/StrokeLayer";
 
@@ -193,7 +194,7 @@ export default function Home() {
         <button className="finish" disabled={!strokes.length} onClick={openCard}>마법진 완성 <span>→</span></button>
       </aside>
     </section>
-    {cardOpen && <div className="card-overlay" onClick={() => setCardOpen(false)}><article className="magic-card" onClick={(event) => { event.stopPropagation(); event.currentTarget.classList.toggle("flipped"); }}><div className="card-face card-front"><small>ARCANA CARD</small><h2>{ability}</h2><div className="mini-circle">{attributeGlyphs}</div><p>{attributeLabel} · {metrics.grade}</p><strong>{metrics.power}</strong><span>MAGIC POWER</span><footer>카드를 클릭해 뒷면 보기</footer></div><div className="card-face card-back"><small>ANALYSIS RECORD</small><h2>{ability}</h2><p>{description}</p><dl><div><dt>속성</dt><dd>{attributeLabel}</dd></div><div><dt>극좌표식</dt><dd>{metrics.formula}</dd></div><div><dt>복잡도</dt><dd>{metrics.complexity}</dd></div><div><dt>등급</dt><dd>{metrics.grade}</dd></div></dl><footer>클릭해서 앞면으로 돌아가기</footer></div></article><button className="share-circle" onClick={(event) => { event.stopPropagation(); shareCircle(); }} disabled={shareState === "working"}>{shareState === "copied" ? "링크가 복사되었습니다" : shareState === "failed" ? "복사에 실패했습니다" : shareState === "working" ? "링크 만드는 중…" : "◈ 마법진 공유하기"}</button></div>}
+    {cardOpen && <ArcanaCard ability={ability} attributeLabel={attributeLabel} attributeGlyphs={attributeGlyphs} description={description} analysis={analysis} hasFormula={hasFormula} shareState={shareState} onShare={shareCircle} onClose={() => setCardOpen(false)} onOpenFormula={openFormula} />}
     {formulaOpen && <FormulaSheet analysis={analysis} onClose={() => setFormulaOpen(false)} />}
   </main>;
 }

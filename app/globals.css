@@ -91,3 +91,12 @@
 .sheet-format button.on{background:#e9e3d7;color:#1d2422;border-color:#e9e3d7}
 .sheet-copy{margin-left:auto;padding:8px 18px;border:1px solid #c9b16b;background:#20302c;color:#f2e8d2;font:10px 'DM Mono';letter-spacing:.08em}
 @media(max-width:700px){.formula-sheet{padding:20px 16px 16px}.sheet-body{grid-template-columns:1fr}.sheet-map{position:sticky;top:-1px;z-index:2;padding:6px 0 8px;background:#172321;border-bottom:1px solid #2c3b36}.dark .sheet-map{background:#19121f}.sheet-map svg{display:block;width:150px;margin:auto}}
+
+.card-close{position:absolute;top:16px;right:16px;width:30px;height:30px;line-height:1;border:1px solid #4a5a52;background:#0f1413;color:#b7c1b5;font-size:13px;cursor:pointer}
+.card-back h2{margin-top:12px}
+.card-back>p{margin:9px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-back dl{margin-top:14px}
+.card-back dl div{padding:7px 0}
+.card-open-formula{position:absolute;left:31px;right:31px;bottom:46px;padding:9px 0;border:1px solid #c9b16b;background:#20302c;color:#f2e8d2;font:10px 'DM Mono';letter-spacing:.08em;cursor:pointer}
+.dark .card-open-formula{background:#241a30}
+.card-open-formula:disabled{opacity:.35}
