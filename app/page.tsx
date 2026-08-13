@@ -2,9 +2,9 @@
 
 import { CSSProperties, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { analyzeFitted, fitAll, type CircleAnalysis } from "@/lib/analysis";
 import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
 import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
-import { getMetrics } from "@/lib/metrics";
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
 import { loadDraft, saveDraft } from "@/lib/storage";
@@ -28,7 +28,13 @@ export default function Home() {
   const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restored = useRef(false);
-  const metrics = useMemo(() => getMetrics(strokes), [strokes]);
+  // 1단: 변환. 획 배열이 바뀔 때만 돈다. WeakMap 이 이미 적합된 획을 건너뛰므로
+  // 커밋당 실비용은 새로 그린 획 1개의 적합이다.
+  const spectra = useMemo(() => fitAll(strokes), [strokes]);
+  // 2단: 집계. 활성 획은 여기 들어오지 않는다 — displayStrokes(렌더용)와 strokes(분석용)를
+  // 나눠 두는 진짜 이유가 이 메모 경계다. 그리는 중에 계수가 초당 60회 튀지 않는다.
+  const analysis: CircleAnalysis = useMemo(() => analyzeFitted(strokes, spectra), [strokes, spectra]);
+  const metrics = analysis.metrics;
   const picked = ATTRIBUTE_ORDER.filter((id) => attributes.includes(id));
   const pickedInfos = picked.map((id) => ATTRIBUTES[id]);
   const selectedColors = pickedInfos.map((item) => item.accent);
@@ -46,9 +52,18 @@ export default function Home() {
   });
   const displayStrokes = active ? [...strokes, active] : strokes;
 
+  // 냉시작 배치 적합만 유휴 시간으로 미룬다. requestIdleCallback 이 없는 브라우저는 setTimeout 으로 떨어진다.
   useEffect(() => {
-    const draft = loadDraft();
-    if (draft.length) setStrokes(draft);
+    // if (draft.length) 가드는 E20 이다. 로드가 실패해 빈 배열이 와도 setStrokes 를 부르지 않으므로
+    // 저장 effect 가 돌아 원본을 덮어쓰는 경로가 생기지 않는다. restored.current 만으로는
+    // requestIdleCallback 경로에서 첫 setStrokes 가 두 번째 렌더에 오므로 이 가드를 대신하지 못한다.
+    const restore = () => { const draft = loadDraft(); if (draft.length) setStrokes(draft); };
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(restore, { timeout: 200 });
+      return () => window.cancelIdleCallback(handle);
+    }
+    idleTimer.current = setTimeout(restore, 0);
+    return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
   }, []);
   // 첫 커밋에서는 저장하지 않는다. 불러오기 전의 빈 배열이 저장된 그림을 덮어쓰기 때문이다.
   useEffect(() => {
@@ -100,8 +115,6 @@ export default function Home() {
       }
     }
     setActive(null);
-    if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => undefined, 100);
   };
   const undo = () => setStrokes((current) => { if (!current.length) return current; const item = current[current.length - 1]; setRedoStack((redo) => [...redo, item]); return current.slice(0, -1); });
   const redo = () => setRedoStack((current) => { if (!current.length) return current; const item = current[current.length - 1]; setStrokes((drawn) => [...drawn, item]); return current.slice(0, -1); });
