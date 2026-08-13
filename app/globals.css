@@ -108,5 +108,6 @@
 .dark .card-open-formula{background:#241a30}
 .card-open-formula:disabled{opacity:.35}
 /* 좁은 화면은 그리는 데 쓴다. 점수·지표·아래 요약은 카드와 식 보기에서 다시 만나므로 여기서는 접는다.
-   완성 버튼만 화면 아래에 띄우고, 안내 문구는 그 버튼에 가리지 않도록 그만큼 올린다. */
-@media(max-width:640px){.scan-group.score{display:none}.stage-footer{display:none}.scan-bar .finish{position:fixed;left:12px;right:12px;bottom:12px;z-index:5;margin:0;padding:14px;text-align:center;box-shadow:0 8px 24px #0009}}
+   완성 버튼은 그리던 자리 바로 아래에 둔다 — 화면 아래에 띄우면 캔버스와 버튼 사이가 떠서
+   무엇을 완성하는 버튼인지 멀어진다. 그 자리는 stage 의 아래 여백으로 미리 비워 둔다. */
+@media(max-width:640px){.scan-group.score{display:none}.stage-footer{display:none}.stage{padding-bottom:58px}.scan-bar{position:static}.scan-bar .finish{position:absolute;left:12px;right:12px;bottom:12px;z-index:5;margin:0;padding:14px;text-align:center}}
