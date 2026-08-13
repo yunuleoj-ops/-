@@ -229,6 +229,18 @@ describe("fitStroke — 열린 획", () => {
     const smooth = fitOpenStroke(arcPoints(90));
     expect(smooth.stats.maxError).toBeLessThanOrEqual(3 * smooth.stats.rmsError);
   });
+
+  it("증가 단계가 count를 상한까지 밀어도 그리디가 이미 멈췄으면 capped가 아니다 (I1)", () => {
+    // 그리디는 count=10에서 정지조건을 만족한다(위 테스트). maxTerms:12는 그 10보다 큰 상한이라
+    // 그리디 자신은 상한에 도달하지 않는다 — 국소 꺾임 증가 단계(10 → 12, ceiling에서 잘림)만 상한에 닿는다.
+    // 옛 코드는 이 잘림만 보고 capped:true를 찍었다. 목표(0.99)를 이미 넘긴 적합에 "너무 복잡해서
+    // 여기까지 적었다" 배지를 붙이는 버그였다.
+    const eased = fitOpenStroke(cornerPoints(), { maxTerms: 12 });
+    expect(eased.terms.length).toBe(12);
+    expect(eased.stats.accuracy).toBeCloseTo(0.993346, 5);
+    expect(eased.stats.accuracy).toBeGreaterThan(0.99);
+    expect(eased.stats.capped).toBe(false);
+  });
 });
 describe("truncate · reconstruct — 열린 획", () => {
   it("truncate는 진폭 상위 k항만 남기고 오차를 다시 센다", () => {

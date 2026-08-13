@@ -162,6 +162,9 @@ export function selectAndFinalize(
     if (error <= limit || error <= absFloor) break;   // 정지조건 (1) 과 (2)
     count += 1;
   }
+  // capped는 그리디 루프 자신의 종료 사유만 본다 — 아래 국소 꺾임 증가 단계가 count를 다시 움직이기 전에 굳힌다.
+  // 증가 단계가 count를 ceiling까지 밀어 올려도, 그리디가 이미 정지조건으로 멈췄다면 상한 도달이 아니다(I1).
+  const exhausted = count >= ceiling;
   let rmsError = residualAt(count);
   let measured = measure(count);
   // 최종 A를 정한 뒤 한 번만 재구성해 최대 오차를 잰다. RMS의 3배를 넘으면 항을 1.5배로 딱 한 번 늘린다.
@@ -186,7 +189,7 @@ export function selectAndFinalize(
       rmsError,
       maxError: measured.maxError,
       accuracy: normS > 0 ? clamp01(1 - rmsError / normS) : 1,
-      capped: measured.terms.length >= maxTerms
+      capped: exhausted
     }
   };
 }
