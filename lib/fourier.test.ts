@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { densify, resampleUniform, toComplex, type Complex } from "@/lib/resample";
-import { amplitude, bandLimit, dftClosed, normOf, sampleCount } from "@/lib/fourier";
+import { amplitude, bandLimit, dftClosed, fitStroke, normOf, sampleCount, type FitOptions } from "@/lib/fourier";
 import type { Point } from "@/lib/geometry";
 
 // ── 픽스처: 캔버스 좌표(0..100, y 아래로 증가) 위의 닫힌 도형 제어점 ──
@@ -46,6 +46,12 @@ const CIRCLE = circlePoints(30, 64);
 const SQUARE = edgeLoop([{ x: 20, y: 20 }, { x: 80, y: 20 }, { x: 80, y: 80 }, { x: 20, y: 80 }], 1);
 const HEXAGON = edgeLoop(regularPolygon(6, 30), 1);
 const PENTAGRAM = edgeLoop(starPolygon(5, 30), 1);
+
+const closedFit = (points: Point[], options?: FitOptions) => {
+  const spectrum = fitStroke(points, "closed", options);
+  if (spectrum.kind !== "closed") throw new Error("닫힌 스펙트럼이 아니다");
+  return spectrum;
+};
 
 // 분석 파이프라인과 같은 경로로 표본을 만든다: densify → resampleUniform → toComplex
 const closedSamples = (points: Point[]) => {
@@ -187,5 +193,79 @@ describe("테이블 DFT", () => {
       }
       expect(Math.abs(total - length ** 2) / length ** 2, row.name).toBeLessThan(row.tolerance);
     }
+  });
+});
+
+describe("닫힌 획 적합", () => {
+  it("반지름 30 완전한 원은 정확히 1항이다", () => {
+    const fit = closedFit(CIRCLE);
+    expect(fit.terms).toHaveLength(1);
+    expect(fit.terms[0].n).toBe(1);
+    expect(amplitude(fit.terms[0])).toBeCloseTo(30, 2);   // 실측 29.999100
+    // |c₀| 이 1e-9 이 아닌 이유: 닫는 직선 현(2.944)이 중심을 아주 조금 끌어당긴다.
+    expect(amplitude(fit.c0)).toBeLessThan(2e-3);         // 실측 1.111e-3
+    expect(fit.stats.P).toBe(378);
+    expect(fit.stats.arcLength).toBeCloseTo(188.4922, 3);
+    expect(fit.stats.normS).toBeCloseTo(30, 2);           // 실측 29.999100
+    expect(fit.stats.rmsError).toBeLessThan(5e-3);        // 실측 3.778e-3
+    expect(fit.stats.maxError).toBeLessThan(5e-2);        // 실측 3.412e-2 (seam 하나가 지배한다)
+    expect(fit.stats.accuracy).toBeGreaterThan(0.9998);   // 실측 0.9998741
+    expect(fit.stats.capped).toBe(false);
+  });
+
+  it("정사각형 6항 · 정육각형 4항 · 오각별 8항에서 99%에 닿는다", () => {
+    const table = [
+      { name: "square", points: SQUARE, terms: 6, reached: 0.9902253, short: 0.9872027 },
+      { name: "hexagon", points: HEXAGON, terms: 4, reached: 0.9916976, short: 0.9882091 },
+      { name: "pentagram", points: PENTAGRAM, terms: 8, reached: 0.9903255, short: 0.9879917 }
+    ];
+    for (const row of table) {
+      const enough = closedFit(row.points, { maxTerms: row.terms });
+      const lacking = closedFit(row.points, { maxTerms: row.terms - 1 });
+      expect(enough.terms, row.name).toHaveLength(row.terms);
+      expect(enough.stats.accuracy, row.name).toBeGreaterThanOrEqual(0.99);
+      expect(enough.stats.accuracy, row.name).toBeCloseTo(row.reached, 5);
+      expect(lacking.stats.accuracy, row.name).toBeLessThan(0.99);
+      expect(lacking.stats.accuracy, row.name).toBeCloseTo(row.short, 5);
+      expect(enough.stats.capped, row.name).toBe(true);
+    }
+  });
+
+  it("terms는 진폭 내림차순으로 저장된다", () => {
+    // D-C: truncate(k) = "진폭 상위 k개" 계약의 근거다. n 오름차순으로 정렬하지 않는다.
+    for (const [points, name] of [[CIRCLE, "circle"], [SQUARE, "square"], [PENTAGRAM, "pentagram"]] as const) {
+      const fit = closedFit(points);
+      for (let i = 1; i < fit.terms.length; i += 1) {
+        expect(amplitude(fit.terms[i - 1]), `${name} #${i}`).toBeGreaterThanOrEqual(amplitude(fit.terms[i]));
+      }
+    }
+    expect(closedFit(SQUARE).terms.map((term) => term.n)).toEqual([-1, 3, -5, 7, -9, 11, -13, 15, -17]);
+  });
+
+  it("m겹 대칭 도형은 n ≡ n₁ (mod m) 인 항만 고른다", () => {
+    for (const [points, m, name] of [[SQUARE, 4, "square"], [HEXAGON, 6, "hexagon"], [PENTAGRAM, 5, "pentagram"]] as const) {
+      const fit = closedFit(points);
+      const first = fit.terms[0].n;
+      for (const term of fit.terms) expect(((term.n - first) % m + m) % m, `${name} n=${term.n}`).toBe(0);
+    }
+  });
+
+  it("퇴화 획은 NaN 없이 point로 떨어지고 length는 호길이를 담는다", () => {
+    // D-E: point 의 length 는 "항상 0"이 아니라 호길이다. toEqual 로 통째 비교하지 않는다.
+    const sameSpot = Array.from({ length: 12 }, () => ({ x: 50, y: 50 }));
+    for (const [points, closure] of [[sameSpot, "closed"], [[], "closed"], [[{ x: 10, y: 10 }], "closed"]] as const) {
+      const spectrum = fitStroke(points as Point[], closure);
+      expect(spectrum.kind).toBe("point");
+      if (spectrum.kind !== "point") throw new Error("point가 아니다");
+      expect(spectrum.length).toBe(0);
+    }
+    const asPoint = fitStroke(CIRCLE, "point");
+    expect(asPoint.kind).toBe("point");
+    if (asPoint.kind !== "point") throw new Error("point가 아니다");
+    expect(asPoint.length).toBeCloseTo(185.5481, 3);   // closure="point"는 열린 폴리라인 길이다
+  });
+
+  it("열린 획은 아직 이 모듈이 처리하지 않는다", () => {
+    expect(() => fitStroke([{ x: 20, y: 50 }, { x: 80, y: 50 }], "open")).toThrow(/open/);
   });
 });

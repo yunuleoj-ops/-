@@ -3,7 +3,8 @@
 // 닫힌 획은 지수급수, 열린 획은 현 분리 + 사인급수(DST-I, Task 5).
 // FFT를 쓰지 않는다 — DST-I는 라딕스-2 복소 FFT와 호환되지 않고, 항이 한 자릿수 규모라 이득도 없다.
 
-import type { Complex } from "@/lib/resample";
+import type { Closure, Point } from "@/lib/geometry";
+import { densify, resampleUniform, toComplex, type Complex } from "@/lib/resample";
 
 export type { Complex } from "@/lib/resample";
 
@@ -107,4 +108,113 @@ export function dftClosed(
     terms.push({ n, re, im });
   }
   return { c0: coefficient(0), terms, cosTable, sinTable };
+}
+
+// 에너지는 항상 이 식으로 센다. hypot(re,im)²와 re²+im²는 부동소수에서 같은 값이 아니라서
+// 그리디 누적과 truncate가 서로 다른 식을 쓰면 두 경로의 rmsError가 미세하게 갈린다.
+const energyOf = (term: { re: number; im: number }) => term.re * term.re + term.im * term.im;
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
+// 진폭 그리디 · 파스발 꼬리 · 정지조건 · 국소 꺾임 보정. 닫힘과 열림이 이 함수 하나만 쓴다(D-D).
+// Task 5의 fitOpen 은 candidates/tailEnergy/rebuild 만 자기 기저로 만들어 여기로 넘긴다 —
+// 정확도·정지조건·maxError 보정이 두 벌 존재하면 열림이 닫힘과 다른 규칙으로 끝나고,
+// 그 차이는 화면에 "정확도 99%"로 똑같이 표시되어 절대 발견되지 않는다.
+export function selectAndFinalize(
+  samples: Complex[],
+  candidates: Candidate[],
+  tailEnergy: number,
+  normS: number,
+  arcLength: number,
+  P: number,
+  rebuild: (terms: Term[]) => Complex[],
+  options: FitOptions = {}
+): { terms: Term[]; stats: FitStats } {
+  const target = options.target ?? TARGET_ACCURACY;
+  const maxTerms = options.maxTerms ?? T_MAX;
+  const absFloor = options.absFloor ?? ABS_FLOOR;
+
+  // 직교 기저에서 최적 T항 근사는 진폭 상위 T개다(스펙 §1.6). 재적합 루프는 없다.
+  // 이 순서가 곧 저장 순서다 — n 오름차순으로 되돌리지 않는다(D-C).
+  const sorted = [...candidates].sort((a, b) => b.energy - a.energy || Math.abs(a.n) - Math.abs(b.n) || a.n - b.n);
+  const limit = Math.max(0, (1 - target) * normS);
+  const ceiling = Math.min(maxTerms, sorted.length);
+
+  const residualAt = (count: number) => {
+    let rest = tailEnergy;
+    for (let index = 0; index < count; index += 1) rest -= sorted[index].energy;
+    return Math.sqrt(Math.max(0, rest));
+  };
+  // 진단용 최대 오차. 항 집합이 확정된 뒤에만 부른다(획당 1~2회).
+  const measure = (count: number) => {
+    const terms = sorted.slice(0, count).map(({ n, re, im }) => ({ n, re, im }));
+    const hat = rebuild(terms);
+    let worst = 0;
+    for (let k = 0; k < samples.length; k += 1) {
+      worst = Math.max(worst, Math.hypot(samples[k].re - hat[k].re, samples[k].im - hat[k].im));
+    }
+    return { terms, maxError: worst };
+  };
+
+  let count = 0;
+  while (count < ceiling) {
+    const error = residualAt(count);
+    if (error <= limit || error <= absFloor) break;   // 정지조건 (1) 과 (2)
+    count += 1;
+  }
+  const rmsError = residualAt(count);
+  const measured = measure(count);
+
+  return {
+    terms: measured.terms,
+    stats: {
+      P,
+      arcLength,
+      normS,
+      rmsError,
+      maxError: measured.maxError,
+      accuracy: normS > 0 ? clamp01(1 - rmsError / normS) : 1,
+      capped: measured.terms.length >= maxTerms
+    }
+  };
+}
+
+export function fitClosed(samples: Complex[], arcLength: number, options?: FitOptions): ClosedSpectrum {
+  const P = samples.length;
+  const { c0, terms, cosTable, sinTable } = dftClosed(samples, bandLimit(P));
+  // S² = (1/P)Σ|z_k|² − |c₀|². 앱 전체에서 정확도 분모는 이 S 하나뿐이다.
+  const normS = normOf(samples);
+  const candidates: Candidate[] = terms.map((term) => ({ ...term, energy: energyOf(term) }));
+
+  // 표본 격자 위의 재구성이라 dftClosed 가 만든 표를 그대로 조회한다(삼각함수 호출 0회).
+  const rebuild = (chosen: Term[]): Complex[] => {
+    const out: Complex[] = [];
+    for (let k = 0; k < P; k += 1) {
+      let re = c0.re;
+      let im = c0.im;
+      for (const term of chosen) {
+        const index = (((term.n * k) % P) + P) % P;
+        re += term.re * cosTable[index] - term.im * sinTable[index];
+        im += term.re * sinTable[index] + term.im * cosTable[index];
+      }
+      out.push({ re, im });
+    }
+    return out;
+  };
+
+  const { terms: chosen, stats } = selectAndFinalize(samples, candidates, normS * normS, normS, arcLength, P, rebuild, options);
+  return { kind: "closed", c0, terms: chosen, stats };
+}
+
+export function fitStroke(points: Point[], closure: Closure, options?: FitOptions): Spectrum {
+  if (points.length < 2) return { kind: "point", length: 0 };
+  const closed = closure === "closed";
+  const { poly, length } = densify(points, closed);
+  // !(length > …) 는 부정형이 아니라 NaN 처리다. length > … 로 쓰면 NaN 이 아래로 새어 나간다.
+  if (closure === "point" || !(length > MIN_ARC_LENGTH)) return { kind: "point", length };
+  const P = sampleCount(length);
+  const samples = resampleUniform(poly, length, P, closed).map(toComplex);
+  // Task 5가 이 한 줄을 `return closed ? fitClosed(...) : fitOpen(samples, length, options);` 로 바꾼다.
+  if (!closed) throw new Error("fitStroke: open stroke fitting lands in Task 5");
+  return fitClosed(samples, length, options);
 }
