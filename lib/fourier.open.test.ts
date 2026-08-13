@@ -136,23 +136,45 @@ describe("fitStroke — 열린 획", () => {
     }
   });
 
-  it("보고된 오차가 표본에서 실제로 성립한다", () => {
-    for (const shape of shapes) {
+  it("스펙트럼과 무관한 조밀 표본에서 잰 오차가 보고값과 맞는다", () => {
+    // 닫힘 스위트의 동명 테스트(lib/fourier.test.ts, "보고된 정확도의 진위" 389~410줄)와 같은 방식이다.
+    // 예전 버전은 적합이 내부에서 쓴 것과 완전히 같은 P 격자(samplesOf(shape.points, P))로 되재표본해
+    // densify/resampleUniform이 결정적 순수 함수인 탓에 fitOpen이 만든 배열을 글자 그대로 재생산했다 —
+    // 독립 측정이 아니라 같은 격자 위 잔차에서 rmsError/accuracy를 유도하는 산술만 다시 확인하는 순환이었다.
+    // 여기서는 적합 격자(P)와 사실상 겹치지 않는 조밀한 M으로 다시 훑어 실제 재구성 오차를 잰다.
+    const straightCase = { name: "직선", points: straightPoints({ x: 20, y: 20 }, { x: 80, y: 75 }) };
+    for (const shape of [straightCase, ...shapes]) {
       const spectrum = fitOpenStroke(shape.points);
-      const P = spectrum.stats.P;
-      const samples = samplesOf(shape.points, P);
-      let square = 0;
+      // 열림은 resampleUniform(..., false)가 P+1개(양 끝 포함)를 돌려준다(D-E). reconstruct(fit, q)도
+      // t = j/(q−1)로 같은 규칙을 쓰므로, M개를 얻으려면 진짜 표본 파라미터는 M이 아니라 M−1을 넘겨야 한다.
+      const M = 4 * spectrum.stats.P + 2;   // P의 배수가 아니라 적합 격자와 사실상 겹치지 않는다(끝점 제외)
+      const { poly, length } = densify(shape.points, false);
+      const truth = resampleUniform(poly, length, M - 1, false).map(toComplex);
+      const drawn = reconstruct(spectrum, M).map(toComplex);
+      expect(drawn, shape.name).toHaveLength(M);
+      expect(truth, shape.name).toHaveLength(M);
+      let total = 0;
       let worst = 0;
-      for (let k = 0; k <= P; k += 1) {
-        const hat = evaluate(spectrum, spectrum.terms, k / P);
-        const gap = Math.hypot(samples[k].re - hat.re, samples[k].im - hat.im);
-        square += gap * gap;
+      for (let i = 0; i < M; i += 1) {
+        const gap = Math.hypot(truth[i].re - drawn[i].re, truth[i].im - drawn[i].im);
+        total += gap * gap;
         worst = Math.max(worst, gap);
       }
-      const measured = Math.sqrt(square / (P + 1));
-      expect(Math.abs(measured - spectrum.stats.rmsError) / measured, shape.name).toBeLessThan(1e-9);
-      expect(worst, shape.name).toBeCloseTo(spectrum.stats.maxError, 10);
-      expect(spectrum.stats.accuracy, shape.name).toBeCloseTo(1 - measured / spectrum.stats.normS, 10);
+      const rms = Math.sqrt(total / M);
+      if (spectrum.terms.length === 0) {
+        // 직선(0항)은 rmsError가 기계 정밀도(~1e-14)라 비율 비교가 무의미하다 — 절대 오차로 잰다.
+        // (앞의 "완전한 직선은 0항으로 정확하다" 테스트와 같은 1e-9 문턱.)
+        expect(rms, shape.name).toBeLessThan(1e-9);
+        expect(worst, shape.name).toBeLessThan(1e-9);
+      } else {
+        // 실측 비율: rms/rmsError 0.999~1.003, worst/maxError 0.978~1.013(반원·호·물결·갈고리·코너).
+        // 닫힘 테스트가 쓰는 것과 같은 [0.95, 1.05] 여유를 그대로 쓴다 — 늘리지 않아도 통과한다.
+        expect(rms / spectrum.stats.rmsError, shape.name).toBeGreaterThan(0.95);
+        expect(rms / spectrum.stats.rmsError, shape.name).toBeLessThan(1.05);
+        expect(worst, shape.name).toBeLessThanOrEqual(spectrum.stats.maxError * 1.05);
+      }
+      const probed = spectrum.stats.normS > 0 ? 1 - rms / spectrum.stats.normS : 1;
+      expect(spectrum.stats.accuracy, shape.name).toBeLessThanOrEqual(probed + 1e-4);   // 보고값이 실제보다 후하면 안 된다
     }
   });
 
