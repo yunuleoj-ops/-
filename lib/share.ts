@@ -4,7 +4,7 @@
 // (실측: 54획 977제어점 기준 47,677 B → base64url 2,756자)
 
 import { ATTRIBUTE_ORDER, sanitizeAttributes, type Attribute } from "@/lib/attributes";
-import type { Point, Stroke, Symmetry } from "@/lib/geometry";
+import { newId, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
 
 const FORMAT = 1;
 const SYMMETRY_CODES: Symmetry[] = ["free", "mirrorX", "mirrorY", "rotate"];
@@ -79,7 +79,9 @@ export async function decodeShare(text: string | undefined | null): Promise<Shar
         points.push({ x: Math.min(100, Math.max(0, x / 10)), y: Math.min(100, Math.max(0, y / 10)) });
       }
       if (points.length < 2) continue;
-      strokes.push({ points, symmetry, rotationCount: Math.min(12, Math.max(1, Math.round(rotationCount))) });
+      // id는 링크에 싣지 않는다(획당 32바이트). 읽는 쪽에서 만들어 붙인다.
+      // Task 3이 closure를 classifyClosure(points)로 교체한다.
+      strokes.push({ id: newId(), points, symmetry, rotationCount: Math.min(12, Math.max(1, Math.round(rotationCount))), closure: "open" });
     }
     if (!strokes.length) return null;
 

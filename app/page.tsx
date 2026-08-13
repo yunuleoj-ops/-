@@ -3,9 +3,18 @@
 import { CSSProperties, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
-import { copiesFor, pathFor, pointDistance, simplify, SIMPLIFY_TOLERANCE, STROKE_WIDTH, transformPoint, type Stroke, type Symmetry } from "@/lib/geometry";
+import { copiesFor, newId, pathFor, pointDistance, simplify, SIMPLIFY_TOLERANCE, STROKE_WIDTH, transformPoint, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
 import { getMetrics } from "@/lib/metrics";
 import { encodeShare } from "@/lib/share";
+import { loadDraft, saveDraft } from "@/lib/storage";
+
+// E2: 점 하나를 톡 찍은 것은 획이 아니다. 100 단위 뷰박스에서 호길이 1.0은 눈에 보이지도 않는다.
+const MIN_STROKE_LENGTH = 1;
+const polylineLength = (points: Point[]) => {
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) total += pointDistance(points[index - 1], points[index]);
+  return total;
+};
 
 export default function Home() {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -44,18 +53,13 @@ export default function Home() {
   const displayStrokes = active ? [...strokes, active] : strokes;
 
   useEffect(() => {
-    const draft = localStorage.getItem("arcana-draft-v1");
-    if (draft) {
-      try {
-        const parsed = JSON.parse(draft) as Partial<Stroke>[];
-        setStrokes(parsed.map((stroke) => ({ points: stroke.points ?? [], symmetry: stroke.symmetry ?? "rotate", rotationCount: stroke.rotationCount ?? 6 })));
-      } catch { localStorage.removeItem("arcana-draft-v1"); }
-    }
+    const draft = loadDraft();
+    if (draft.length) setStrokes(draft);
   }, []);
   // 첫 커밋에서는 저장하지 않는다. 불러오기 전의 빈 배열이 저장된 그림을 덮어쓰기 때문이다.
   useEffect(() => {
     if (!restored.current) { restored.current = true; return; }
-    localStorage.setItem("arcana-draft-v1", JSON.stringify(strokes));
+    saveDraft(strokes);
   }, [strokes]);
   useEffect(() => () => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
@@ -65,7 +69,11 @@ export default function Home() {
 
   const eventPoint = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    return { x: ((event.clientX - rect.left) / rect.width) * 100, y: ((event.clientY - rect.top) / rect.height) * 100 };
+    const x = ((event.clientX - rect.left) / rect.width) * 100;
+    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    // E17: setPointerCapture 때문에 캔버스 밖에서도 좌표가 들어온다. 보이지 않는 곳까지 뻗은 획이
+    // 식과 정확도에는 그대로 잡히므로, 화면 밖 여유 10%까지만 남기고 자른다.
+    return { x: Math.min(110, Math.max(-10, x)), y: Math.min(110, Math.max(-10, y)) };
   };
   const startStroke = (event: PointerEvent<SVGSVGElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -77,7 +85,8 @@ export default function Home() {
       });
       return;
     }
-    setActive({ points: [eventPoint(event)], symmetry, rotationCount });
+    // id는 이벤트 핸들러 안에서만 만든다. 렌더 중에 만들면 서버와 클라이언트가 다른 값을 내 hydration이 깨진다.
+    setActive({ id: newId(), points: [eventPoint(event)], symmetry, rotationCount, closure: "open" });
   };
   const addPoint = (event: PointerEvent<SVGSVGElement>) => {
     if (!active || tool === "eraser") return;
@@ -86,8 +95,11 @@ export default function Home() {
   };
   const endStroke = () => {
     if (active && active.points.length > 2) {
-      const shaped = { ...active, points: simplify(active.points, SIMPLIFY_TOLERANCE) };
-      setStrokes((current) => [...current, shaped]); setRedoStack([]);
+      const points = simplify(active.points, SIMPLIFY_TOLERANCE);
+      // Task 3이 여기에 closure: classifyClosure(points)를 붙여 커밋 시 1회 판정으로 동결한다.
+      if (polylineLength(points) >= MIN_STROKE_LENGTH) {
+        setStrokes((current) => [...current, { ...active, points }]); setRedoStack([]);
+      }
     }
     setActive(null);
     if (idleTimer.current) clearTimeout(idleTimer.current);

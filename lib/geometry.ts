@@ -2,11 +2,23 @@
 
 export type Point = { x: number; y: number };
 export type Symmetry = "free" | "mirrorX" | "mirrorY" | "rotate";
-export type Stroke = { points: Point[]; symmetry: Symmetry; rotationCount: number };
+// 획이 닫혔는지는 커밋 시 한 번만 판정해 동결한다. 매번 다시 재면 같은 그림의 식 형태가 흔들린다.
+export type Closure = "closed" | "open" | "point";
+export type Stroke = { id: string; points: Point[]; symmetry: Symmetry; rotationCount: number; closure: Closure };
 
 export const STROKE_WIDTH = 0.5;
 export const SIMPLIFY_TOLERANCE = 0.35;
 export const CURVE_STEPS = 8;
+
+// crypto.randomUUID는 보안 컨텍스트(https·localhost)에서만 존재한다. http로 연 페이지에서도 획에는 id가 있어야 한다.
+export const newId = (): string => {
+  const source = (globalThis as { crypto?: Crypto }).crypto;
+  if (typeof source?.randomUUID === "function") return source.randomUUID();
+  if (typeof source?.getRandomValues === "function") {
+    return Array.from(source.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+};
 
 export const pointDistance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 

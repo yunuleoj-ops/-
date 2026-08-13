@@ -7,7 +7,7 @@ import { copiesFor, curvePoints, pathFor, strokeCopies, transformPoint, type Poi
 const TRIANGLE: Point[] = [{ x: 20, y: 20 }, { x: 80, y: 20 }, { x: 80, y: 80 }];
 const SQUARE: Point[] = [...TRIANGLE, { x: 20, y: 80 }];
 // Task 2에서 Stroke에 id/closure가 붙으면 이 한 줄만 고치면 된다.
-const strokeOf = (symmetry: Symmetry, rotationCount: number, points: Point[]): Stroke => ({ points, symmetry, rotationCount });
+const strokeOf = (symmetry: Symmetry, rotationCount: number, points: Point[]): Stroke => ({ id: "s1", points, symmetry, rotationCount, closure: "open" });
 
 describe("pathFor", () => {
   it("점이 없으면 빈 문자열", () => {
