@@ -26,6 +26,10 @@
 .card-stage .magic-card{grid-row:2}
 .card-stage .share-circle{grid-row:3;align-self:start}
 .sheet-head{text-align:center}
+/* 슬라이더와 범례는 위 그림에 딸린 설명이라 그림과 같은 폭으로 세운다.
+   시트 폭을 다 쓰면 그림만 가운데 떠 있는 섬처럼 보인다. */
+.sheet-slider,.sheet-legend{width:min(320px,100%);margin-left:auto;margin-right:auto}
+.sheet-slider{flex-wrap:wrap}
 .stroke-pulse.loop{animation-iteration-count:infinite}
 .arcana-defs{position:absolute;width:0;height:0}
 .scan-group.score{flex-direction:column;align-items:flex-start;gap:3px}
@@ -57,7 +61,7 @@
 .sheet-slider{display:flex;align-items:center;gap:9px;margin-top:15px;padding:11px 12px;background:#1d2b28;border:1px solid #33443e;color:#9aa79c;font:10px 'DM Mono';letter-spacing:.06em}
 .sheet-slider input{flex:1;accent-color:var(--accent)}
 .sheet-slider b{color:#e6e2d4;font-weight:400;white-space:nowrap}
-.sheet-slider.empty{display:block;margin:15px 0 0;color:#8e9a91}
+.sheet-slider.empty{display:block;margin:15px auto 0;color:#8e9a91}
 .sheet-legend{margin-top:12px;padding:10px 12px;background:#141e1c;border-left:2px solid #ad9158}
 .sheet-legend>span{display:block;font:10px/1.7 'DM Mono';color:#a8b3a8;word-break:break-word}.sheet-legend .katex{font-size:1.15em;color:#b9c2b6}
 .sheet-body{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start;margin-top:16px}
