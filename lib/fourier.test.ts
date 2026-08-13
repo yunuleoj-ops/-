@@ -377,3 +377,40 @@ describe("항 수 슬라이더와 오버레이", () => {
     expect(overlayPointCount(fitStroke([], "closed"))).toBe(0);   // 퇴화 획은 오버레이에서 걸러진다
   });
 });
+
+describe("보고된 정확도의 진위", () => {
+  it("스펙트럼과 무관한 조밀 표본에서 잰 오차가 보고값과 맞는다", () => {
+    for (const [name, points] of [["circle", CIRCLE], ["square", SQUARE], ["hexagon", HEXAGON], ["pentagram", PENTAGRAM]] as const) {
+      const fit = closedFit(points);
+      const { poly, length } = densify(points, true);
+      const M = 4 * fit.stats.P + 2;   // P의 배수가 아니라 적합 표본과 사실상 겹치지 않는다
+      const truth = resampleUniform(poly, length, M, true).map(toComplex);
+      const drawn = reconstruct(fit, M).map(toComplex);
+      expect(drawn, name).toHaveLength(M);
+      let total = 0;
+      let worst = 0;
+      for (let i = 0; i < M; i += 1) {
+        const gap = Math.hypot(truth[i].re - drawn[i].re, truth[i].im - drawn[i].im);
+        total += gap * gap;
+        worst = Math.max(worst, gap);
+      }
+      const rms = Math.sqrt(total / M);
+      const probed = 1 - rms / fit.stats.normS;
+      expect(rms / fit.stats.rmsError, name).toBeGreaterThan(0.95);   // 실측 0.9917 ~ 0.9990
+      expect(rms / fit.stats.rmsError, name).toBeLessThan(1.05);
+      expect(fit.stats.accuracy, name).toBeLessThanOrEqual(probed + 1e-4);  // 보고값이 실제보다 후하면 안 된다
+      expect(worst, name).toBeLessThanOrEqual(fit.stats.maxError * 1.05);
+    }
+  });
+
+  it("같은 입력은 같은 계수를 낸다", () => {
+    expect(JSON.stringify(closedFit(PENTAGRAM))).toBe(JSON.stringify(closedFit(PENTAGRAM)));
+  });
+
+  it("닫힌 획 20개 적합이 50ms를 넘지 않는다", () => {
+    const set = [CIRCLE, SQUARE, HEXAGON, PENTAGRAM];
+    const started = performance.now();
+    for (let i = 0; i < 20; i += 1) closedFit(set[i % set.length]);
+    expect(performance.now() - started).toBeLessThan(50);   // 실측 4.0ms (M시리즈), Worker 도입 기준선이 50ms
+  });
+});
