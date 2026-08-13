@@ -11,7 +11,7 @@ type Params = { params: Promise<{ d: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const shared = await decodeShare((await params).d);
-  if (!shared) return { title: "마법진을 찾을 수 없습니다 · 마법연산자" };
+  if (!shared) return { title: "소실된 마법진 · 마법연산자" };
   const metrics = getMetrics(shared.strokes);
   const title = cardNameOf(shared.name, shared.attributes, metrics.rotation);
   return {
@@ -27,8 +27,8 @@ export default async function SharePage({ params }: Params) {
     return <main className="share holy">
       <div className="share-card share-empty">
         <small>ARCANA CARD</small>
-        <h1>마법진을 읽을 수 없습니다</h1>
-        <p>링크가 잘렸거나 손상된 것 같습니다. 보낸 사람에게 주소 전체를 다시 받아 보세요.</p>
+        <h1>소실된 마법진입니다</h1>
+        <p>고대에 등장했던 술식인 것 같아요. 지금은 흔적만 남아 찾을 수 없습니다.<br />보낸 사람에게 주소 전체를 다시 받아 보면 되살아날지도 모릅니다.</p>
         <Link className="share-cta" href="/">내 마법진 그리러 가기 <span>→</span></Link>
       </div>
     </main>;
