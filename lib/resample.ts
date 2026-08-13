@@ -74,6 +74,30 @@ export function densify(points: Point[], closed: boolean): { poly: Point[]; leng
   return { poly, length };
 }
 
+// 누적 현길이 표 + two-pointer 전진. u_k 가 단조 증가하므로 이진탐색이 필요 없다 — O(|D| + P).
+export function resampleUniform(poly: Point[], length: number, P: number, closed: boolean): Point[] {
+  const count = closed ? P : P + 1;
+  if (!poly.length) return [];
+  if (poly.length === 1 || !(length > 0)) return Array.from({ length: count }, () => poly[0]);
+
+  const table = new Array<number>(poly.length);
+  table[0] = 0;
+  for (let index = 1; index < poly.length; index += 1) table[index] = table[index - 1] + pointDistance(poly[index - 1], poly[index]);
+  const total = table[poly.length - 1];
+
+  const samples: Point[] = [];
+  let segment = 0;
+  for (let k = 0; k < count; k += 1) {
+    const u = Math.min(total, (k * length) / P);
+    while (segment < poly.length - 2 && table[segment + 1] < u) segment += 1;
+    const span = table[segment + 1] - table[segment];
+    const t = span > 0 ? (u - table[segment]) / span : 0;
+    const a = poly[segment]; const b = poly[segment + 1];
+    samples.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  }
+  return samples;
+}
+
 // 커밋 시 1회만 부른다(E7). L·g 를 게임 지표와 똑같이 curvePoints 위에서 재므로 분석용 closed 가 게임용 closed 의 진부분집합이 된다.
 export function classifyClosure(points: Point[]): Closure {
   const shaped = curvePoints(points);

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { curvePoints, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Point } from "@/lib/geometry";
 import {
-  classifyClosure, densify, fromComplex, MAX_DENSE_POINTS, polylineLength, toComplex
+  classifyClosure, densify, fromComplex, MAX_DENSE_POINTS, polylineLength, resampleUniform, toComplex
 } from "@/lib/resample";
 
 // 반지름 radius 의 원호를 count 개 제어점으로 만든다. degrees=360 이면 마지막 점이 첫 점과 겹친다.
@@ -157,5 +157,53 @@ describe("densify", () => {
     expect(poly.length).toBeLessThan(firstPass);
     // 세그먼트마다 ceil 하므로 정확히 4096 은 아니고 세그먼트 수만큼 넘칠 수 있다.
     expect(poly.length).toBeLessThanOrEqual(MAX_DENSE_POINTS + zigzag.length);
+  });
+});
+
+describe("resampleUniform", () => {
+  test("닫힘: 표본 P 개, 끝점 중복 없음, 호길이 등간격", () => {
+    const { poly, length } = densify(arcPoints(360, 30, 33), true);
+    const samples = resampleUniform(poly, length, 256, true);
+    expect(samples.length).toBe(256);
+    expect(allFinite(samples)).toBe(true);
+    const gaps = gapsOf(samples, true);
+    expect(gaps.length).toBe(256);
+    expect(spreadOf(gaps)).toBeLessThan(1e-3);
+    expect(gaps.reduce((sum, gap) => sum + gap, 0) / 256).toBeCloseTo(length / 256, 3);
+  });
+
+  test("열림: 표본 P+1 개, 양 끝 포함", () => {
+    const { poly, length } = densify(arcPoints(350), false);
+    const samples = resampleUniform(poly, length, 128, false);
+    expect(samples.length).toBe(129);
+    expect(pointDistance(samples[0], poly[0])).toBeLessThan(1e-12);
+    expect(pointDistance(samples[128], poly[poly.length - 1])).toBeLessThan(1e-9);
+    expect(spreadOf(gapsOf(samples, false))).toBeLessThan(1e-3);
+  });
+
+  test("직선은 정확히 등간격", () => {
+    const { poly, length } = densify([{ x: 20, y: 50 }, { x: 80, y: 50 }], false);
+    expect(length).toBe(60);
+    const gaps = gapsOf(resampleUniform(poly, length, 128, false), false);
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(1e-12);
+    expect(gaps[0]).toBeCloseTo(60 / 128, 12);
+  });
+
+  test("퇴화 폴리라인도 NaN 을 만들지 않는다", () => {
+    const { poly, length } = densify(Array.from({ length: 12 }, () => ({ x: 40, y: 60 })), false);
+    const samples = resampleUniform(poly, length, 128, false);
+    expect(samples.length).toBe(129);
+    expect(samples.every((point) => point.x === 40 && point.y === 60)).toBe(true);
+    expect(resampleUniform([], 0, 128, false)).toEqual([]);
+  });
+
+  test("실전 경로: 350° 호는 닫힘 판정이므로 닫힌 현까지 포함해 등간격", () => {
+    const points = arcPoints(350);
+    expect(classifyClosure(points)).toBe("closed");
+    const { poly, length } = densify(points, true);
+    expect(length).toBeCloseTo(188.4492, 3);
+    const samples = resampleUniform(poly, length, 378, true);
+    expect(samples.length).toBe(378);
+    expect(spreadOf(gapsOf(samples, true))).toBeLessThan(1e-3);
   });
 });
