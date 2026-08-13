@@ -21,6 +21,11 @@ Object.defineProperty(globalThis, "localStorage", {
 const KEY = "arcana-draft-v1";
 const put = (value: unknown) => store.set(KEY, JSON.stringify(value));
 const line = [{ x: 10, y: 10 }, { x: 90, y: 90 }];
+// 반지름 30 의 완전한 원(제어점 33개, 마지막이 첫 점과 겹친다).
+const circle = Array.from({ length: 33 }, (_, index) => {
+  const angle = (2 * Math.PI * index) / 32;
+  return { x: 50 + 30 * Math.cos(angle), y: 50 - 30 * Math.sin(angle) };
+});
 // 손떨림이 섞인 레거시 점군. v1에는 simplify를 거치지 않고 저장된 그림이 있다.
 const noisy = Array.from({ length: 200 }, (_, index) => {
   const angle = (Math.PI * 2 * index) / 200;
@@ -98,6 +103,16 @@ describe("loadDraft", () => {
     store.set(KEY, "{망가진");
     expect(loadDraft()).toEqual([]);
     expect(store.get(KEY)).toBe("{망가진");
+  });
+
+  it("closure 가 없는 항목은 좌표에서 판정한다", () => {
+    put([{ points: circle, symmetry: "free", rotationCount: 6 }]);
+    expect(loadDraft()[0].closure).toBe("closed");
+  });
+
+  it("같은 좌표 두 점은 point 로 복원된다", () => {
+    put([{ points: [{ x: 40, y: 60 }, { x: 40, y: 60 }] }]);
+    expect(loadDraft()[0].closure).toBe("point");
   });
 });
 

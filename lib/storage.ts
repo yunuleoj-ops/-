@@ -2,6 +2,7 @@
 // 키를 올리면 기존 사용자의 그림이 전부 사라진다 — 그리기 앱에서 그건 마이그레이션이 아니라 데이터 손실이다.
 
 import { newId, simplify, SIMPLIFY_TOLERANCE, type Closure, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
+import { classifyClosure } from "@/lib/resample";
 
 const DRAFT_KEY = "arcana-draft-v1";
 const DRAFT_VERSION = 2;
@@ -37,8 +38,8 @@ const reviveStroke = (raw: unknown, taken: Set<string>): Stroke | null => {
   const symmetry = SYMMETRIES.find((item) => item === raw.symmetry) ?? "rotate";
   // E11: rotationCount 0/누락은 각도 2π·k/0 = Infinity → NaN 좌표 → path 소멸로 이어진다.
   const rotationCount = Math.min(8, Math.max(2, Math.round(Number(raw.rotationCount)) || 6));
-  // Task 3이 여기를 classifyClosure(points)로 교체한다.
-  const closure = CLOSURES.find((item) => item === raw.closure) ?? "open";
+  // 저장된 동결값이 있으면 그대로 쓴다(E7). 없는 v1 항목만 좌표에서 판정한다 — simplify 를 거친 최종 좌표에서.
+  const closure = CLOSURES.find((item) => item === raw.closure) ?? classifyClosure(points);
   return { id, points, symmetry, rotationCount, closure };
 };
 
