@@ -123,5 +123,9 @@ export const formatLatex = (analysis: CircleAnalysis) => {
 export const formatDecomposition = (analysis: CircleAnalysis): string => {
   const live = analysis.strokes.filter((item) => item.spectrum.kind !== "point").length;
   if (!live) return "—";
+  // live > 0 인데 analysis.accuracy 가 null인 조합은 현재 도달 불가다(#13): fitStroke는 kind가
+  // "point"가 아니면 항상 arcLength > MIN_ARC_LENGTH를 보장하므로, analysis.ts의 valid 필터를
+  // live와 정확히 같은 집합으로 통과시킨다 — accuracy가 null이 되려면 valid가 비어야 하는데 그건
+  // live도 0이라는 뜻이다. 그래도 formatAccuracy(null) = "—"로 안전하게 떨어지는 방어적 위임이다.
   return `${live}획 · ${analysis.totalTerms}항 · ${formatAccuracy(analysis.accuracy)}`;
 };

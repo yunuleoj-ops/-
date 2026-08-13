@@ -84,7 +84,10 @@ export async function decodeShare(text: string | undefined | null): Promise<Shar
       strokes.push({
         id: newId(), points, symmetry,
         rotationCount: Math.min(12, Math.max(1, Math.round(rotationCount))),
-        // 링크에는 closure 를 싣지 않는다. 좌표에서 다시 판정해야 보낸 사람과 받은 사람의 식이 같아진다.
+        // 링크에는 closure 를 싣지 않는다. 대부분은 좌표에서 다시 판정하면 보낸 쪽과 받은 쪽이 일치한다.
+        // 다만 이 함수의 좌표 클램프는 [0,100]이고 page.tsx(E17)는 캔버스 밖 여유를 [-10,110]까지 허용한다.
+        // 캔버스를 벗어나 그린 획은 두 클램프가 서로 달라 왕복 후 점 배열이 달라질 수 있고, 그러면 closure와
+        // 식도 보낸 쪽과 달라질 수 있다(M5) — "항상 일치한다"는 보장은 아니다.
         closure: classifyClosure(points)
       });
     }

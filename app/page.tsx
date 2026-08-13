@@ -37,8 +37,13 @@ export default function Home() {
   // 1단: 변환. 획 배열이 바뀔 때만 돈다. WeakMap 이 이미 적합된 획을 건너뛰므로
   // 커밋당 실비용은 새로 그린 획 1개의 적합이다.
   const spectra = useMemo(() => fitAll(strokes), [strokes]);
-  // 2단: 집계. 활성 획은 여기 들어오지 않는다 — displayStrokes(렌더용)와 strokes(분석용)를
-  // 나눠 두는 진짜 이유가 이 메모 경계다. 그리는 중에 계수가 초당 60회 튀지 않는다.
+  // 2단: 집계. deps가 [strokes, spectra]인데 spectra는 strokes가 바뀔 때만 바뀌므로(바로 위 useMemo),
+  // 이 두 번째 경계는 1단이 다시 돌 때마다 함께 다시 돈다 — 독자적으로 재계산을 건너뛰지 않는다.
+  // 이 자리의 실제 이득은 전부 위 WeakMap(1단, spectrumCache)에서 나온다. 2단을 따로 떼어 둔 이유는
+  // target을 받는 별도 호출(§4.7이 잘라낸 기능)을 언젠가 붙일 수 있게 경계를 열어 두기 위함이고,
+  // 항 수 슬라이더는 이 메모를 거치지 않고 FormulaSheet 안에서 truncate로 돈다.
+  // 활성 획은 여기 들어오지 않는다 — displayStrokes(렌더용)와 strokes(분석용)를 나눠 두는 진짜 이유가
+  // 이 메모 경계다. 그리는 중에 계수가 초당 60회 튀지 않는다.
   const analysis: CircleAnalysis = useMemo(() => analyzeFitted(strokes, spectra), [strokes, spectra]);
   const metrics = analysis.metrics;
   // 유효 획이 0이면(획이 없거나 전부 퇴화) "실패한 0%"가 아니라 "아직 없음"이다 (E4).
