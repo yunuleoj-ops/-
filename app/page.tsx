@@ -222,7 +222,6 @@ export default function Home() {
               pulse={pulse.step && index === pulse.index ? { duration: pulse.step, turn: pulse.turn } : null} />)}
             <circle className="core" cx="50" cy="50" r="1.5" />
           </svg>
-          <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>
         </div>
         <div className="stage-footer"><span className="footer-frame">복소 푸리에 · 중심 원점</span><div className="footer-formula"><b className={active ? "pending" : undefined}>{summarySentence}</b>{active && <i>+1 대기</i>}<TeX className="footer-tex" tex={structureExpr} /></div><div className="footer-actions"><button className="open-formula" onClick={openFormula} disabled={!hasFormula} aria-haspopup="dialog" aria-expanded={formulaOpen}>식 보기</button><span className={active ? "footer-accuracy pending" : "footer-accuracy"}>정확도 {formatAccuracy(analysis.accuracy)}</span></div></div>
       </section>
