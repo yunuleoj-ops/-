@@ -36,6 +36,10 @@ export const achievedTarget = (analysis: CircleAnalysis): boolean =>
 
 export const strokeNumber = (index: number): string => String(index + 1).padStart(2, "0");
 
+// 「식 보기」를 열 수 있는가. 전부 퇴화 획(점)이면 보여 줄 식이 없다 — 실패가 아니라 없음이다(E4).
+export const hasFormula = (analysis: CircleAnalysis): boolean =>
+  analysis.strokes.some((item) => item.spectrum.kind !== "point");
+
 // 슬라이더는 획당 상한이다. 전역 예산은 D9가 폐기했고, 전역으로 두면 1항에서 한 획만 살아남아 슬라이더의 교육 가치가 사라진다.
 export const maxTermCount = (analysis: CircleAnalysis): number =>
   analysis.strokes.reduce((most, item) => Math.max(most, termCountOf(item.spectrum)), 0);

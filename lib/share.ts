@@ -5,6 +5,7 @@
 
 import { ATTRIBUTE_ORDER, sanitizeAttributes, type Attribute } from "@/lib/attributes";
 import { newId, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
+import { sanitizeName } from "@/lib/naming";
 import { classifyClosure } from "@/lib/resample";
 
 const FORMAT = 1;
@@ -37,9 +38,9 @@ const gzip = async (text: string) =>
 const gunzip = async (bytes: Uint8Array) =>
   new Response(new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
 
-export type SharePayload = { strokes: Stroke[]; attributes: Attribute[] };
+export type SharePayload = { strokes: Stroke[]; attributes: Attribute[]; name?: string };
 
-export async function encodeShare({ strokes, attributes }: SharePayload): Promise<string> {
+export async function encodeShare({ strokes, attributes, name }: SharePayload): Promise<string> {
   const packed = strokes.map((stroke) => {
     let previousX = 0; let previousY = 0;
     const coordinates: number[] = [];
@@ -51,7 +52,11 @@ export async function encodeShare({ strokes, attributes }: SharePayload): Promis
     return [Math.max(0, SYMMETRY_CODES.indexOf(stroke.symmetry)), stroke.rotationCount, ...coordinates];
   });
   const attributeCodes = attributes.map((id) => ATTRIBUTE_ORDER.indexOf(id)).filter((code) => code >= 0);
-  return toBase64Url(await gzip(JSON.stringify([FORMAT, attributeCodes, packed])));
+  // 이름은 있을 때만 덧붙인다. 자리를 비워 두면 이름 없는 링크가 예전과 같은 길이로 남는다.
+  const cardName = sanitizeName(name);
+  const payload: unknown[] = [FORMAT, attributeCodes, packed];
+  if (cardName) payload.push(cardName);
+  return toBase64Url(await gzip(JSON.stringify(payload)));
 }
 
 // 어떤 입력에도 예외를 던지지 않는다. 읽을 수 없으면 null이고, 호출부는 그것만 처리하면 된다.
@@ -60,7 +65,7 @@ export async function decodeShare(text: string | undefined | null): Promise<Shar
   try {
     const parsed: unknown = JSON.parse(await gunzip(fromBase64Url(text)));
     if (!Array.isArray(parsed) || parsed[0] !== FORMAT) return null;
-    const [, rawAttributes, rawStrokes] = parsed as [number, unknown, unknown];
+    const [, rawAttributes, rawStrokes, rawName] = parsed as [number, unknown, unknown, unknown];
     if (!Array.isArray(rawStrokes)) return null;
 
     const strokes: Stroke[] = [];
@@ -96,7 +101,8 @@ export async function decodeShare(text: string | undefined | null): Promise<Shar
     const attributeIds = Array.isArray(rawAttributes)
       ? rawAttributes.map((code) => ATTRIBUTE_ORDER[Number(code)]).filter(Boolean)
       : [];
-    return { strokes, attributes: sanitizeAttributes(attributeIds) };
+    // 이름은 남이 보낸 문자열이다. 화면에 닿기 전에 여기서 한 번 더 다듬는다(보낸 쪽 정리를 믿지 않는다).
+    return { strokes, attributes: sanitizeAttributes(attributeIds), name: sanitizeName(rawName) };
   } catch {
     return null;
   }

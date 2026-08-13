@@ -7,7 +7,9 @@ import { useEffect, useRef, type RefObject } from "react";
 // Task 11 이 .card-overlay 를 이 훅으로 옮기면 그 경로가 실제로 생긴다.
 let locks = 0;
 
-export function useOverlayShell(onClose: () => void): RefObject<HTMLButtonElement | null> {
+// onClose 가 없는 오버레이도 있다 — 공유 화면의 카드는 뒤에 돌아갈 화면이 없어 닫지 않는다.
+// 그때는 Escape 도 닫기 버튼도 없고, 스크롤 잠금만 남는다.
+export function useOverlayShell(onClose?: () => void): RefObject<HTMLButtonElement | null> {
   const focusRef = useRef<HTMLButtonElement>(null);
   const latest = useRef(onClose);
   useEffect(() => { latest.current = onClose; }, [onClose]);
@@ -16,7 +18,7 @@ export function useOverlayShell(onClose: () => void): RefObject<HTMLButtonElemen
     focusRef.current?.focus();
     if (locks === 0) document.body.style.overflow = "hidden";
     locks += 1;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") latest.current(); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") latest.current?.(); };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);

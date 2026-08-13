@@ -3,12 +3,14 @@
 import { CSSProperties, PointerEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { analyzeFitted, fitAll, type CircleAnalysis } from "@/lib/analysis";
-import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
+import { ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
+import { cardNameOf } from "@/lib/naming";
 import { formatAccuracy, formatSummarySentence, structureTex } from "@/lib/formatting";
 import { newId, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
 import { EMPTY_HISTORY, historyReducer } from "@/lib/history";
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
+import { hasFormula as canShowFormula } from "@/lib/sheet";
 import { loadDraft, saveDraft } from "@/lib/storage";
 import ArcanaCard from "@/app/_components/ArcanaCard";
 import FormulaSheet from "@/app/_components/FormulaSheet";
@@ -22,6 +24,8 @@ export default function Home() {
   const [active, setActive] = useState<Stroke | null>(null);
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [attributes, setAttributes] = useState<Attribute[]>(["light", "fire"]);
+  // 사용자가 지은 카드 이름. 비어 있으면 속성이 정해 주는 능력명을 그대로 쓴다.
+  const [cardName, setCardName] = useState("");
   const [symmetry, setSymmetry] = useState<Symmetry>("rotate");
   const [rotationCount, setRotationCount] = useState(6);
   const [guides, setGuides] = useState(true);
@@ -52,7 +56,7 @@ export default function Home() {
   const analysis: CircleAnalysis = useMemo(() => analyzeFitted(strokes, spectra), [strokes, spectra]);
   const metrics = analysis.metrics;
   // 유효 획이 0이면(획이 없거나 전부 퇴화) "실패한 0%"가 아니라 "아직 없음"이다 (E4).
-  const hasFormula = analysis.strokes.some((item) => item.spectrum.kind !== "point");
+  const hasFormula = canShowFormula(analysis);
   const summarySentence = useMemo(() => formatSummarySentence(analysis), [analysis]);
   const structureExpr = useMemo(() => structureTex(analysis), [analysis]);
   const picked = ATTRIBUTE_ORDER.filter((id) => attributes.includes(id));
@@ -135,14 +139,14 @@ export default function Home() {
   };
   const undo = () => dispatch({ type: "undo" });
   const redo = () => dispatch({ type: "redo" });
-  const saveCard = () => { localStorage.setItem("arcana-card-v1", JSON.stringify({ version: 2, strokes, attributes, metrics, savedAt: new Date().toISOString() })); setSaved(true); };
+  const saveCard = () => { localStorage.setItem("arcana-card-v1", JSON.stringify({ version: 2, strokes, attributes, name: cardName, metrics, savedAt: new Date().toISOString() })); setSaved(true); };
   // 링크에 마법진이 통째로 들어간다. 네이티브 공유 시트가 있으면 그쪽을, 없으면 클립보드를 쓴다.
   const shareCircle = async () => {
     setShareState("working");
     try {
-      const url = `${location.origin}/s/${await encodeShare({ strokes, attributes })}`;
+      const url = `${location.origin}/s/${await encodeShare({ strokes, attributes, name: cardName })}`;
       if (navigator.share) {
-        await navigator.share({ title: `마법연산자 · ${ability}`, text: `위력 ${metrics.power} · ${metrics.grade}`, url });
+        await navigator.share({ title: `마법연산자 · ${title}`, text: `위력 ${metrics.power} · ${metrics.grade}`, url });
         setShareState("idle");
         return;
       }
@@ -155,7 +159,8 @@ export default function Home() {
     if (shareTimer.current) clearTimeout(shareTimer.current);
     shareTimer.current = setTimeout(() => setShareState("idle"), 2200);
   };
-  const ability = abilityOf(picked, metrics.rotation);
+  // 카드 이름 하나로 화면·링크·공유 시트가 같은 이름을 부른다.
+  const title = cardNameOf(cardName, picked, metrics.rotation);
 
   return <main className={`arcana ${tone}`} style={{ "--accent": accent, "--accent-gradient": accentGradient, "--speed": `${cycle}s` } as CSSProperties}>
     <header className="site-header"><div className="logo"><span>✦</span> 마법<b>연산자</b></div><div className="student">MAGIC CIRCLE STUDIO <i /> 실시간 분석</div><button className="save-button" onClick={saveCard}>{saved ? "저장됨" : "임시 저장"}</button></header>
@@ -167,7 +172,7 @@ export default function Home() {
             const blocker = blockerOf(id);
             return <button key={id} onClick={() => toggleAttribute(id)} disabled={!!blocker} title={blocker ? `${ATTRIBUTES[blocker].label}과(와) 상극이라 함께 고를 수 없습니다` : ATTRIBUTES[id].description} className={attributes.includes(id) ? "on" : ""} style={{ "--element": ATTRIBUTES[id].accent } as CSSProperties}><span>{ATTRIBUTES[id].glyph}</span>{ATTRIBUTES[id].label}</button>;
             })}</div>
-            <div className="ability-card" title={description}><span className="ability-glyphs" aria-hidden="true">{attributeGlyphs}</span><span className="ability-text"><i>{attributeLabel}</i><b>{ability}</b></span></div>
+            <div className="ability-card" title={description}><span className="ability-glyphs" aria-hidden="true">{attributeGlyphs}</span><span className="ability-text"><i>{attributeLabel}</i><b>{title}</b></span></div>
           </div>
           <div className="scan-group power" title={`MAGIC POWER ${metrics.power} / 999`}>
             <b>{metrics.power}</b>
@@ -219,7 +224,14 @@ export default function Home() {
       </section>
 
     </section>
-    {cardOpen && <ArcanaCard ability={ability} attributeLabel={attributeLabel} description={description} cycle={cycle} analysis={analysis} hasFormula={hasFormula} shareState={shareState} onShare={shareCircle} onClose={() => setCardOpen(false)} onOpenFormula={openFormula} />}
+    {cardOpen && <ArcanaCard title={title} draftName={cardName} onRename={setCardName}
+      attributeLabel={attributeLabel} description={description} cycle={cycle} analysis={analysis} hasFormula={hasFormula}
+      action={<button className="share-circle" onClick={shareCircle} disabled={shareState === "working"}>
+        {shareState === "copied" ? "링크가 복사되었습니다"
+          : shareState === "failed" ? "복사에 실패했습니다"
+          : shareState === "working" ? "링크 만드는 중…" : "◈ 마법진 공유하기"}
+      </button>}
+      onClose={() => setCardOpen(false)} onOpenFormula={openFormula} />}
     {formulaOpen && <FormulaSheet analysis={analysis} onClose={() => setFormulaOpen(false)} />}
   </main>;
 }
