@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { curvePoints, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Point } from "@/lib/geometry";
 import {
-  classifyClosure, fromComplex, polylineLength, toComplex
+  classifyClosure, densify, fromComplex, MAX_DENSE_POINTS, polylineLength, toComplex
 } from "@/lib/resample";
 
 // 반지름 radius 의 원호를 count 개 제어점으로 만든다. degrees=360 이면 마지막 점이 첫 점과 겹친다.
@@ -110,5 +110,52 @@ describe("classifyClosure", () => {
 
     // 열린 호는 simplify 가 한 점도 못 줄여도 그대로 열림이어야 한다.
     expect(classifyClosure(simplify(arcPoints(345), SIMPLIFY_TOLERANCE))).toBe("open");
+  });
+});
+
+describe("densify", () => {
+  test("렌더와 같은 곡선을 더 촘촘히 훑는다", () => {
+    const points = arcPoints(350);
+    const { poly, length } = densify(points, false);
+    const renderedLength = polylineLength(curvePoints(points));
+    expect(poly[0]).toEqual(points[0]);
+    expect(pointDistance(poly[poly.length - 1], points[points.length - 1])).toBeLessThan(1e-12);
+    expect(length).toBeGreaterThanOrEqual(renderedLength);
+    expect(length - renderedLength).toBeLessThan(0.05);
+    expect(Math.max(...gapsOf(poly, false))).toBeLessThan(0.3);
+  });
+
+  test("닫힘이면 마지막 제어점에서 첫 제어점으로 돌아오는 직선 현이 붙는다", () => {
+    const points = arcPoints(350);
+    const open = densify(points, false);
+    const closed = densify(points, true);
+    const chord = pointDistance(points[points.length - 1], points[0]);
+    // 현의 길이만큼만 늘어난다 = 닫는 구간이 직선이라는 뜻이다. 이웃을 순환으로 감으면 이 등식이 깨진다.
+    expect(closed.length - open.length).toBeCloseTo(chord, 9);
+    expect(pointDistance(closed.poly[closed.poly.length - 1], points[0])).toBeLessThan(1e-12);
+    // 열림 구간의 좌표는 closed 여부와 무관하게 글자 그대로 같다.
+    expect(closed.poly.slice(0, open.poly.length)).toEqual(open.poly);
+  });
+
+  test("퇴화 입력에서 길이 0 을 돌려주고 NaN 을 만들지 않는다", () => {
+    const same = Array.from({ length: 12 }, () => ({ x: 40, y: 60 }));
+    const degenerate = densify(same, false);
+    expect(degenerate.length).toBe(0);
+    expect(allFinite(degenerate.poly)).toBe(true);
+    expect(densify([], false)).toEqual({ poly: [], length: 0 });
+    expect(densify([{ x: 3, y: 4 }], false)).toEqual({ poly: [{ x: 3, y: 4 }], length: 0 });
+  });
+
+  test("1차 평가가 4096 점을 넘으면 간격을 다시 잡는다", () => {
+    const zigzag = Array.from({ length: 81 }, (_, index) => ({ x: index % 2 ? 88 : 12, y: 6 + (index * 88) / 80 }));
+    let firstPass = 1;
+    for (let index = 0; index < zigzag.length - 1; index += 1) {
+      firstPass += Math.min(64, Math.max(4, Math.ceil(pointDistance(zigzag[index], zigzag[index + 1]) / 0.25)));
+    }
+    expect(firstPass).toBeGreaterThan(MAX_DENSE_POINTS);
+    const { poly } = densify(zigzag, false);
+    expect(poly.length).toBeLessThan(firstPass);
+    // 세그먼트마다 ceil 하므로 정확히 4096 은 아니고 세그먼트 수만큼 넘칠 수 있다.
+    expect(poly.length).toBeLessThanOrEqual(MAX_DENSE_POINTS + zigzag.length);
   });
 });
