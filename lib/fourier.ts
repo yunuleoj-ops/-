@@ -162,8 +162,20 @@ export function selectAndFinalize(
     if (error <= limit || error <= absFloor) break;   // 정지조건 (1) 과 (2)
     count += 1;
   }
-  const rmsError = residualAt(count);
-  const measured = measure(count);
+  let rmsError = residualAt(count);
+  let measured = measure(count);
+  // 최종 A를 정한 뒤 한 번만 재구성해 최대 오차를 잰다. RMS의 3배를 넘으면 항을 1.5배로 딱 한 번 늘린다.
+  // 조건 넷은 각각 다른 실패를 막는다(D-F):
+  //  · maxError > 3*rmsError — 잔차가 한 점에 몰린 모서리 도형만 고른다.
+  //  · maxError > absFloor   — 잔차가 이미 눈에 안 보이는 획을 늘리지 않는다. 원의 seam 비율이 9.03이라
+  //                            이 조건이 없으면 완전한 원이 2항이 되고 스펙 T3가 깨진다.
+  //  · count > 0             — 직선(0항)에서 ceil(0 × 1.5) = 0 이라 무의미하게 도는 것을 막는다.
+  //  · count < ceiling       — 이미 상한이면 늘릴 자리가 없다.
+  if (measured.maxError > 3 * rmsError && measured.maxError > absFloor && count > 0 && count < ceiling) {
+    count = Math.min(ceiling, Math.ceil(count * 1.5));
+    rmsError = residualAt(count);
+    measured = measure(count);
+  }
 
   return {
     terms: measured.terms,

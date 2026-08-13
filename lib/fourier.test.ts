@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { densify, resampleUniform, toComplex, type Complex } from "@/lib/resample";
-import { amplitude, bandLimit, dftClosed, fitStroke, normOf, sampleCount, type FitOptions } from "@/lib/fourier";
+import { ABS_FLOOR, T_MAX, amplitude, bandLimit, dftClosed, fitStroke, normOf, sampleCount, type FitOptions } from "@/lib/fourier";
 import type { Point } from "@/lib/geometry";
 
 // ── 픽스처: 캔버스 좌표(0..100, y 아래로 증가) 위의 닫힌 도형 제어점 ──
@@ -267,5 +267,52 @@ describe("닫힌 획 적합", () => {
 
   it("열린 획은 아직 이 모듈이 처리하지 않는다", () => {
     expect(() => fitStroke([{ x: 20, y: 50 }, { x: 80, y: 50 }], "open")).toThrow(/open/);
+  });
+});
+
+describe("국소 꺾임 보호", () => {
+  it("최대 오차가 RMS의 3배를 넘는 모서리 도형은 항을 1.5배로 한 번 늘린다", () => {
+    const table = [
+      { name: "square", points: SQUARE, terms: 9, accuracy: 0.9945916, maxError: 0.9442, normS: 34.6458 },
+      { name: "hexagon", points: HEXAGON, terms: 6, accuracy: 0.9954116, maxError: 0.4967, normS: 27.3899 },
+      { name: "pentagram", points: PENTAGRAM, terms: 12, accuracy: 0.9949019, maxError: 0.6147, normS: 20.8901 }
+    ];
+    for (const row of table) {
+      const fit = closedFit(row.points);
+      expect(fit.terms, row.name).toHaveLength(row.terms);
+      expect(fit.stats.accuracy, row.name).toBeCloseTo(row.accuracy, 5);
+      expect(fit.stats.maxError, row.name).toBeCloseTo(row.maxError, 3);
+      expect(fit.stats.normS, row.name).toBeCloseTo(row.normS, 3);
+      expect(fit.stats.capped, row.name).toBe(false);
+    }
+  });
+
+  it("발동 조건과 비발동 조건을 둘 다 고정한다", () => {
+    // 그리디 정지 시점(6항)의 진단값: 최대 오차 1.4216 > 3 × RMS 0.3387 (비율 4.198) → 9항으로 늘어난 이유.
+    const stopped = closedFit(SQUARE, { maxTerms: 6 });
+    expect(stopped.stats.rmsError).toBeCloseTo(0.33865, 4);
+    expect(stopped.stats.maxError).toBeCloseTo(1.4216, 3);
+    expect(stopped.stats.maxError / stopped.stats.rmsError).toBeCloseTo(4.198, 2);
+
+    // 원은 seam(닫는 직선 현) 하나가 잔차를 지배해 비율이 9.03이다 — 3배 조건만으로는 발동을 못 막는다.
+    // 절대 하한 0.15가 유일한 방어선이고, 그래서 D-F 조건에 maxError > absFloor 가 들어간다.
+    const circle = closedFit(CIRCLE);
+    expect(circle.terms).toHaveLength(1);
+    expect(circle.stats.maxError).toBeCloseTo(0.0341, 4);
+    expect(circle.stats.maxError / circle.stats.rmsError).toBeGreaterThan(3);
+    expect(circle.stats.maxError).toBeLessThan(ABS_FLOOR);
+
+    // absFloor 를 0으로 낮추면 그 방어선이 사라져 원이 2항이 된다. 이 단언이 조건의 존재 이유다.
+    const unguarded = closedFit(CIRCLE, { absFloor: 0 });
+    expect(unguarded.terms).toHaveLength(2);
+    expect(unguarded.terms.map((term) => term.n)).toEqual([1, -1]);
+  });
+
+  it("성장은 T_max를 넘지 않고 상한에 닿으면 capped가 선다", () => {
+    expect(T_MAX).toBe(24);
+    const capped = closedFit(PENTAGRAM, { maxTerms: 5 });
+    expect(capped.terms).toHaveLength(5);
+    expect(capped.stats.capped).toBe(true);
+    expect(capped.stats.accuracy).toBeCloseTo(0.9813628, 5);
   });
 });
