@@ -5,12 +5,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { CircleAnalysis, StrokeAnalysis } from "@/lib/analysis";
-import type { FitStats, Spectrum, Term } from "@/lib/fourier";
+import { TARGET_ACCURACY, type ClosedSpectrum, type FitStats, type Spectrum, type Term } from "@/lib/fourier";
 import type { Stroke, Symmetry } from "@/lib/geometry";
 import type { Metrics } from "@/lib/metrics";
 import {
-  baseRows, coefficientRows, legendLines, maxTermCount, originalPaths,
-  reconstructedPaths, sheetPlainText, termCountOf, termsAtCap
+  achievedTarget, baseRows, coefficientRows, legendLines, maxTermCount, originalPaths,
+  reachedTarget, reconstructedPaths, sheetPlainText, termCountOf, termsAtCap
 } from "@/lib/sheet";
 
 const STATS: FitStats = { P: 128, arcLength: 60, normS: 20, rmsError: 0.1, maxError: 0.3, accuracy: 0.995, capped: false };
@@ -18,7 +18,7 @@ const STATS: FitStats = { P: 128, arcLength: 60, normS: 20, rmsError: 0.1, maxEr
 const strokeOf = (id: string, symmetry: Symmetry, rotationCount = 6, closure: Stroke["closure"] = "closed"): Stroke =>
   ({ id, points: [{ x: 20, y: 50 }, { x: 80, y: 50 }], symmetry, rotationCount, closure });
 
-const closed = (terms: Term[]): Spectrum => ({ kind: "closed", c0: { re: 0, im: 0 }, terms, stats: STATS });
+const closed = (terms: Term[]): ClosedSpectrum => ({ kind: "closed", c0: { re: 0, im: 0 }, terms, stats: STATS });
 // 진폭 내림차순 저장이 fourier 의 계약이다(D-C). 픽스처도 그 순서를 지킨다.
 const band = (count: number): Term[] => Array.from({ length: count }, (_, index) => ({ n: index + 1, re: count - index, im: 0 }));
 
@@ -96,9 +96,11 @@ describe("오버레이 경로", () => {
     expect(new Set(paths.map((path) => path.key)).size).toBe(4);
     expect(paths.every((path) => !path.d.includes("NaN"))).toBe(true);
     expect(paths.every((path) => path.d.endsWith(" Z"))).toBe(true);
-    // 점 수는 overlayPointCount(=64)에서 온다. 세그먼트가 63개라는 것이 그 증거다.
-    expect(paths[0].d.split(" C").length - 1).toBe(63);
-    expect(new Set(paths.map((path) => path.d.slice(0, path.d.indexOf(" C")))))
+    // I2: 재구성 경로는 폴리라인 이미터를 쓴다 — pathFor(Catmull-Rom 큐빅)가 아니라 M + L만 나온다.
+    expect(paths.every((path) => !path.d.includes("C"))).toBe(true);
+    // 점 수는 overlayPointCount(=64)에서 온다. L 세그먼트가 63(=q−1)개라는 것이 그 증거다.
+    expect(paths[0].d.split(" L").length - 1).toBe(63);
+    expect(new Set(paths.map((path) => path.d.slice(0, path.d.indexOf(" L")))))
       .toEqual(new Set(["M80.00 50.00", "M50.00 20.00", "M20.00 50.00", "M50.00 80.00"]));
   });
 
@@ -108,7 +110,8 @@ describe("오버레이 경로", () => {
     expect(paths).toHaveLength(2);
     expect(paths.every((path) => path.d.length > 0)).toBe(true);
     expect(paths.some((path) => path.d.endsWith(" Z"))).toBe(false);
-    expect(paths.map((path) => path.d.slice(0, path.d.indexOf(" C"))))
+    expect(paths.every((path) => !path.d.includes("C"))).toBe(true);
+    expect(paths.map((path) => path.d.slice(0, path.d.indexOf(" L"))))
       .toEqual(["M20.00 50.00", "M80.00 50.00"]);
     // cap 0 이면 사인 항이 전부 빠져 z₀ + Δt, 즉 y가 전부 50.00 인 직선 현이다.
     const chord = reconstructedPaths(analysis, 0)[0].d;
@@ -123,6 +126,39 @@ describe("오버레이 경로", () => {
     expect(originalPaths(analysis)).toHaveLength(3);
     // 원본은 화면과 같은 규칙으로 닫는다(D-A): closed 획만 " Z".
     expect(originalPaths(analysis).map((path) => path.d.endsWith(" Z"))).toEqual([false, true, true]);
+    // originalPaths는 여전히 pathFor(Catmull-Rom)을 쓴다 — reconstructedPaths와 달리 C가 남아 있다(D-A).
+    // 이 픽스처의 stroke.points는 2점뿐이라 pathFor가 L로 떨어지므로, 3점 이상인 별도 stroke로 C를 확인한다.
+    const curved: Stroke = { id: "curve", points: [{ x: 10, y: 10 }, { x: 50, y: 90 }, { x: 90, y: 10 }], symmetry: "free", rotationCount: 6, closure: "open" };
+    const curvedAnalysis = circleOf([{ stroke: curved, spectrum: closed([]), operator: operatorOf("free", 6) }]);
+    expect(originalPaths(curvedAnalysis)[0].d).toContain("C");
+  });
+});
+
+describe("목표 달성 판정 (I3)", () => {
+  // TARGET_ACCURACY는 lib/fourier가 적합할 때 실제로 겨눈 값이다. 여기서 상수를 다시 선언하지 않고
+  // 그 값을 직접 써서 achieved/reached가 fourier의 목표와 어긋나지 않는지 증명한다.
+  it("reachedTarget은 목표 이상 · capped 아님을 함께 요구한다", () => {
+    const reached = item("a", band(3));   // STATS.accuracy = 0.995 ≥ TARGET_ACCURACY, capped:false
+    expect(STATS.accuracy).toBeGreaterThanOrEqual(TARGET_ACCURACY);
+    expect(reachedTarget(reached)).toBe(true);
+
+    // I1: capped된 획은 정확도가 목표를 넘어도 도달로 세지 않는다 — 국소 꺾임 증가 단계가 상한을
+    // 건드렸을 뿐인 경우와, 그리디 자신이 상한에 막힌 진짜 미달을 UI가 구분하지 않기 때문이다.
+    const cappedItem: StrokeAnalysis = { ...reached, spectrum: { ...closed(band(3)), stats: { ...STATS, capped: true } } };
+    expect(reachedTarget(cappedItem)).toBe(false);
+
+    expect(reachedTarget(pointItem("p"))).toBe(false);   // 퇴화 획은 accuracyOf가 null
+  });
+
+  it("achievedTarget은 전체 정확도와 모든 획의 capped 상태를 함께 본다", () => {
+    const analysis = circleOf([item("a", band(3))], { accuracy: 0.995 });
+    expect(achievedTarget(analysis)).toBe(true);
+
+    expect(achievedTarget(circleOf([item("a", band(3))], { accuracy: 0.98 }))).toBe(false);   // 목표 미달
+    expect(achievedTarget(circleOf([], { accuracy: null }))).toBe(false);   // 유효 획 없음(E4)
+
+    const cappedStroke: StrokeAnalysis = { ...item("a", band(3)), spectrum: { ...closed(band(3)), stats: { ...STATS, capped: true } } };
+    expect(achievedTarget(circleOf([cappedStroke], { accuracy: 0.995 }))).toBe(false);   // 획 하나라도 capped면 거짓
   });
 });
 

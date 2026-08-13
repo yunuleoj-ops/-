@@ -7,11 +7,9 @@ import type { CircleAnalysis } from "@/lib/analysis";
 import { formatAccuracy, formatLatex, formatStrokeExpr } from "@/lib/formatting";
 import { STROKE_WIDTH } from "@/lib/geometry";
 import {
-  accuracyOf, baseRows, coefficientRows, isCapped, legendLines, maxTermCount, operatorLabel,
-  originalPaths, reconstructedPaths, sheetPlainText, strokeNumber, termCountOf, termsAtCap
+  accuracyOf, achievedTarget, baseRows, coefficientRows, isCapped, legendLines, maxTermCount, operatorLabel,
+  originalPaths, reachedTarget, reconstructedPaths, sheetPlainText, strokeNumber, termCountOf, termsAtCap
 } from "@/lib/sheet";
-
-const TARGET = 0.99;
 
 export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAnalysis; onClose: () => void }) {
   const maxTerms = maxTermCount(analysis);
@@ -28,9 +26,10 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
   // 슬라이더를 움직여도 변환은 다시 돌지 않는다. truncate + reconstruct 만 재실행된다(§5.3).
   const reconstructed = useMemo(() => reconstructedPaths(analysis, cap), [analysis, cap]);
   const legend = useMemo(() => legendLines(analysis), [analysis]);
-  const capped = analysis.strokes.some(isCapped);
-  // accuracy 는 number | null 이다. null(유효 획 0)은 달성이 아니라 "없음"이다(E4).
-  const achieved = !capped && analysis.accuracy !== null && analysis.accuracy >= TARGET;
+  // 판정은 lib/sheet.achievedTarget 하나뿐이다(I3) — TARGET_ACCURACY를 여기서 다시 선언하면
+  // 적합기가 목표를 옮길 때 이 배지만 조용히 어긋난다. accuracy 는 number | null 이고
+  // null(유효 획 0)은 달성이 아니라 "없음"이다(E4) — achievedTarget이 그 구분을 대신 짊어진다.
+  const achieved = achievedTarget(analysis);
   const worst = analysis.worst;
 
   const jumpTo = (index: number) => {
@@ -91,7 +90,7 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
           {analysis.strokes.map((item, index) => {
             const rows = coefficientRows(item.spectrum);
             const value = accuracyOf(item);
-            const reached = !isCapped(item) && value !== null && value >= TARGET;
+            const reached = reachedTarget(item);
             return <li key={item.stroke.id} ref={(node) => { itemRefs.current[index] = node; }}
               className={focus === index ? "sheet-item on" : "sheet-item"} tabIndex={0}
               onMouseEnter={() => setFocus(index)} onMouseLeave={() => setFocus(null)}

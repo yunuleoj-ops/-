@@ -4,8 +4,8 @@
 
 import type { CircleAnalysis, OperatorDesc, StrokeAnalysis } from "@/lib/analysis";
 import { formatAccuracy, formatOperator, formatStrokeExpr, formatStructure, formatSummarySentence } from "@/lib/formatting";
-import { applyOperator, overlayPointCount, reconstruct, truncate, type Spectrum } from "@/lib/fourier";
-import { copiesFor, pathFor, strokeCopies } from "@/lib/geometry";
+import { applyOperator, overlayPointCount, reconstruct, truncate, TARGET_ACCURACY, type Spectrum } from "@/lib/fourier";
+import { copiesFor, pathFor, strokeCopies, type Point } from "@/lib/geometry";
 
 export type SheetPath = { key: string; strokeIndex: number; copy: number; d: string };
 export type CoefficientRow = { n: number; magnitude: number; phase: number; ratio: number };
@@ -23,6 +23,16 @@ export const accuracyOf = (item: StrokeAnalysis): number | null =>
 
 export const isCapped = (item: StrokeAnalysis): boolean =>
   item.spectrum.kind !== "point" && item.spectrum.stats.capped;
+
+// ✓/미달 배지의 판정. TARGET_ACCURACY는 fourier가 적합할 때 실제로 겨눈 목표이므로 여기서 다시 상수를
+// 선언하지 않고 그대로 import한다(I3) — 두 값이 갈라지면 배지가 조용히 적합기와 어긋난다.
+export const reachedTarget = (item: StrokeAnalysis): boolean => {
+  const value = accuracyOf(item);
+  return !isCapped(item) && value !== null && value >= TARGET_ACCURACY;
+};
+
+export const achievedTarget = (analysis: CircleAnalysis): boolean =>
+  !analysis.strokes.some(isCapped) && analysis.accuracy !== null && analysis.accuracy >= TARGET_ACCURACY;
 
 export const strokeNumber = (index: number): string => String(index + 1).padStart(2, "0");
 
@@ -61,6 +71,18 @@ export const originalPaths = (analysis: CircleAnalysis): SheetPath[] =>
       d: pathFor(points, item.stroke.closure === "closed")
     })));
 
+// 재구성 곡선 전용 폴리라인 이미터(I2). reconstruct 는 이미 곡선 위의 정확한 표본을 ≥64개 돌려주므로
+// pathFor 의 Catmull-Rom 재보간은 다시 매끄럽게 하는 게 아니라 스펙트럼이 정의하지 않는 곡선을 그린다 —
+// "이 곡선이 당신의 그림임을 증명"하는 게 유일한 임무인 오버레이에서는 정확한 표본을 직선으로 잇는 쪽이 맞다.
+// pathFor 대비 세그먼트당 toFixed 호출이 6회→2회로 줄고 문자열도 짧아진다. originalPaths 는 여전히
+// pathFor 를 쓴다(D-A) — 캔버스와 바이트 단위로 같아야 한다는 계약이라 이 이미터로 바꾸지 않는다.
+const polylineFor = (points: Point[], closed: boolean): string => {
+  if (!points.length) return "";
+  let path = `M${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+  for (let i = 1; i < points.length; i += 1) path += ` L${points[i].x.toFixed(2)} ${points[i].y.toFixed(2)}`;
+  return closed ? `${path} Z` : path;
+};
+
 // 대칭 복사본은 계수 위 연산자로 만든다(D10). 복사본을 다시 적합하지 않는다.
 // 복사본 수는 strokeCopies 와 같은 copiesFor 에서 나온다(= item.operator.count). 두 블록의 개수와 순서가 어긋나면 겹침이 깨진다.
 export const reconstructedPaths = (analysis: CircleAnalysis, cap: number): SheetPath[] =>
@@ -70,7 +92,7 @@ export const reconstructedPaths = (analysis: CircleAnalysis, cap: number): Sheet
     const q = overlayPointCount(cut);
     return Array.from({ length: copiesFor(item.stroke.symmetry, item.stroke.rotationCount) }, (_, copy) => ({
       key: `${item.stroke.id}-${copy}`, strokeIndex, copy,
-      d: pathFor(
+      d: polylineFor(
         reconstruct(applyOperator(cut, item.stroke.symmetry, item.stroke.rotationCount, copy), q),
         item.stroke.closure === "closed"
       )
