@@ -38,7 +38,7 @@
 
 .formula-sheet{position:relative;width:min(780px,100%);max-height:min(88vh,760px);overflow-y:auto;padding:26px 26px 22px;text-align:left;color:#e6e2d4;background:#172321;border:1px solid #c9b16b;box-shadow:0 0 0 6px #19221f,0 0 0 7px #ad9158}
 .dark .formula-sheet{background:#19121f}
-.sheet-close{position:absolute;top:14px;right:14px;width:28px;height:28px;line-height:1;border:1px solid #4a5a52;background:transparent;color:#b7c1b5}
+.sheet-close{position:absolute;top:16px;right:16px;width:30px;height:30px;line-height:1;border:1px solid #4a5a52;background:#0f1413;color:#b7c1b5;font-size:13px;cursor:pointer}
 .sheet-head small{font:10px 'DM Mono';letter-spacing:.14em;color:#cbb37a}
 .sheet-head h2{margin:6px 0 14px;font:600 25px 'Playfair Display'}
 .sheet-headline{margin:0;font-size:13px;color:#b7c1b5}

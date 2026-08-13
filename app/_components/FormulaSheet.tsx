@@ -46,10 +46,12 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
     copyTimer.current = setTimeout(() => setCopyState("idle"), 1800);
   };
 
+  // sheet-close는 .formula-sheet(스크롤되는 컨테이너) 밖, .card-overlay(고정) 안에 둔다 — ArcanaCard의
+  // .card-close와 같은 패턴이다(#14). 스크롤 컨테이너 안에 absolute로 두면 시트를 내릴 때 버튼이 같이
+  // 스크롤되어 화면 밖으로 사라진다. sticky는 레이아웃이 깨져 이미 시도했다가 되돌렸다.
   return <div className="card-overlay" onClick={onClose}>
+    <button className="sheet-close" ref={closeRef} onClick={onClose} aria-label="닫기">✕</button>
     <section className="formula-sheet" role="dialog" aria-modal="true" aria-labelledby="formula-sheet-title" onClick={(event) => event.stopPropagation()}>
-      <button className="sheet-close" ref={closeRef} onClick={onClose} aria-label="닫기">✕</button>
-
       <header className="sheet-head">
         <small>FOURIER DECOMPOSITION</small>
         <h2 id="formula-sheet-title">마법진의 식</h2>

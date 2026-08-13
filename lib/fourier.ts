@@ -363,7 +363,7 @@ function fitOpen(samples: Complex[], arcLength: number, options?: FitOptions): S
     }
     re *= 2 / P;
     im *= 2 / P;
-    candidates.push({ n, re, im, energy: scale * (re * re + im * im) });
+    candidates.push({ n, re, im, energy: scale * energyOf({ re, im }) });
   }
 
   // 파스발: Σ_{n=1}^{P−1}|b_n|² = (2/P)Σ_{k=1}^{P−1}|r_k|². 후보 대역(K) 밖 에너지까지 정확히 포함된다.
@@ -449,6 +449,7 @@ export const applyOperator = (spectrum: Spectrum, symmetry: Symmetry, count: num
   if (spectrum.kind === "point" || copy === 0 || symmetry === "free") return spectrum;
   if (symmetry === "mirrorX") return mapAntilinear(spectrum, { re: -1, im: 0 });   // M z = −z̄
   if (symmetry === "mirrorY") return mapAntilinear(spectrum, { re: 1, im: 0 });    // M z =  z̄
+  if (!(count > 0)) return spectrum;   // count = 0 이면 각도가 정의되지 않는다(÷0 → NaN). 오늘은 도달 불가지만 값싼 방어.
   const angle = (Math.PI * 2 * copy) / count;
   return mapLinear(spectrum, { re: Math.cos(angle), im: Math.sin(angle) });
 };

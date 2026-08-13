@@ -110,4 +110,11 @@ describe("analyze", () => {
     const list = [stroke(CIRCLE), stroke(LINE)];
     expect(analyzeFitted(list, fitAll(list))).toEqual(analyze(list));
   });
+
+  it("analyzeFitted 는 strokes 와 spectra 의 길이가 어긋나면 즉시 던진다 (M3)", () => {
+    // 위치로 짝짓는 계약이라, 길이가 다르면 조용히 undefined.kind 로 죽는 대신 여기서 먼저 잘라 밝힌다.
+    const list = [stroke(CIRCLE), stroke(LINE)];
+    expect(() => analyzeFitted(list, fitAll(list).slice(0, 1))).toThrow();
+    expect(() => analyzeFitted(list, [...fitAll(list), ...fitAll([stroke(CIRCLE)])])).toThrow();
+  });
 });

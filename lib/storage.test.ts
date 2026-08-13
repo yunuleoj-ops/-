@@ -92,6 +92,11 @@ describe("loadDraft", () => {
     expect(loadDraft()[0].points).toEqual(line);
   });
 
+  it("좌표를 [-10,110]로 클램프한다(#3) — page.tsx의 eventPoint와 같은 여유", () => {
+    put([{ points: [{ x: 1e9, y: -1e9 }, { x: -1e9, y: 1e9 }] }]);
+    expect(loadDraft()[0].points).toEqual([{ x: 110, y: -10 }, { x: -10, y: 110 }]);
+  });
+
   it("E13 레거시 노이즈 점군을 로드에서 한 번 정규화한다", () => {
     put([{ points: noisy }]);
     const [stroke] = loadDraft();

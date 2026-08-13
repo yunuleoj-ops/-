@@ -55,6 +55,9 @@ const uniformSymmetryOf = (strokes: Stroke[]) => {
 
 // 1단(fitAll)과 2단(집계)을 따로 부를 수 있게 열어 둔다. page.tsx 의 useMemo 두 개가 이 경계에 붙는다.
 export function analyzeFitted(strokes: Stroke[], spectra: Spectrum[]): CircleAnalysis {
+  // export된 이음매다(M3). 1단(fitAll)과 2단을 따로 부르는 호출부가 위치로만 strokes[i]↔spectra[i]를
+  // 짝짓는다 — 길이가 어긋나면 아래 map이 undefined.kind에서 죽는다. 여기서 미리 잘라 원인을 밝힌다.
+  if (spectra.length !== strokes.length) throw new Error("analyzeFitted: strokes와 spectra의 길이가 다르다");
   const list: StrokeAnalysis[] = strokes.map((stroke, index) => ({
     stroke, spectrum: spectra[index], operator: operatorOf(stroke)
   }));

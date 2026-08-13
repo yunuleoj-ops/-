@@ -19,7 +19,9 @@ const revivePoints = (value: unknown): Point[] => {
     const x = typeof raw.x === "number" ? raw.x : NaN; const y = typeof raw.y === "number" ? raw.y : NaN;
     // NaN 좌표 하나가 path 전체를 조용히 지운다. 저장 형식에서 미리 걷어낸다.
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    points.push({ x, y });
+    // page.tsx의 eventPoint와 같은 [-10,110] 클램프(E17)를 여기서도 거울처럼 건다(#3). 손상된 draft가
+    // x=1e9 같은 값을 심으면 클램프 없이는 metrics.length·normS가 그 값 그대로 부풀어 오른다.
+    points.push({ x: Math.min(110, Math.max(-10, x)), y: Math.min(110, Math.max(-10, y)) });
   }
   return points;
 };

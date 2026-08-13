@@ -149,6 +149,20 @@ describe("applyOperator — 항등과 불변량", () => {
     expect(applyOperator(degenerate, "mirrorX", 2, 1)).toBe(degenerate);
   });
 
+  it("rotate에 count 0이 들어와도 NaN 없이 원본을 그대로 돌려준다 (#11)", () => {
+    // 오늘은 copiesFor가 count=0을 만들지 않아 도달 불가지만, 각도 = 2π·copy/count가 count=0이면
+    // Infinity/NaN이 되어 모든 계수가 NaN으로 새고 path가 조용히 사라진다 — 값싼 방어를 미리 건다.
+    const spectrum = fitStroke(blob(), "closed");
+    const guarded = applyOperator(spectrum, "rotate", 0, 1);
+    expect(guarded).toBe(spectrum);
+    if (guarded.kind !== "point") {
+      guarded.terms.forEach((term) => {
+        expect(Number.isFinite(term.re)).toBe(true);
+        expect(Number.isFinite(term.im)).toBe(true);
+      });
+    }
+  });
+
   it("항 수와 stats는 연산자에 불변이다 — 등거리변환은 오차를 만들지 않는다", () => {
     const operators: [Symmetry, number, number][] = [
       ["rotate", 6, 2], ["rotate", 8, 5], ["mirrorX", 2, 1], ["mirrorY", 2, 1]
