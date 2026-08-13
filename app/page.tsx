@@ -25,6 +25,8 @@ export default function Home() {
   const [rotationCount, setRotationCount] = useState(6);
   const [guides, setGuides] = useState(true);
   const [speed, setSpeed] = useState("normal");
+  // 한 바퀴 도는 데 걸리는 시간. 정지는 0이고, 이때 펄스도 함께 멈춘다.
+  const cycle = speed === "slow" ? 18 : speed === "fast" ? 4 : speed === "stop" ? 0 : 9;
   const [cardOpen, setCardOpen] = useState(false);
   const [formulaOpen, setFormulaOpen] = useState(false);
   // 두 오버레이는 상호 배타다. 한쪽을 열면 다른 쪽을 닫는다(§4.3).
@@ -68,6 +70,10 @@ export default function Home() {
     return next.length ? next : current;
   });
   const displayStrokes = active ? [...strokes, active] : strokes;
+  // 펄스는 확정된 획에만 붙는다. 그리는 중인 획은 아직 끝점이 없어 "시작에서 끝까지"가 성립하지 않는다.
+  const pulseStep = cycle && strokes.length ? cycle / strokes.length : 0;
+  const pulseOf = (index: number) =>
+    pulseStep ? { delay: index * pulseStep, duration: Math.max(0.8, pulseStep) } : null;
 
   // 냉시작 배치 적합만 유휴 시간으로 미룬다. requestIdleCallback 이 없는 브라우저는 setTimeout 으로 떨어진다.
   useEffect(() => {
@@ -152,7 +158,7 @@ export default function Home() {
   };
   const ability = abilityOf(picked, metrics.rotation);
 
-  return <main className={`arcana ${tone}`} style={{ "--accent": accent, "--accent-gradient": accentGradient, "--speed": speed === "slow" ? "18s" : speed === "fast" ? "4s" : speed === "stop" ? "0s" : "9s" } as CSSProperties}>
+  return <main className={`arcana ${tone}`} style={{ "--accent": accent, "--accent-gradient": accentGradient, "--speed": `${cycle}s` } as CSSProperties}>
     <header className="site-header"><div className="logo"><span>✦</span> 마법<b>연산자</b></div><div className="student">MAGIC CIRCLE STUDIO <i /> 실시간 분석</div><button className="save-button" onClick={saveCard}>{saved ? "저장됨" : "임시 저장"}</button></header>
     <section className="workspace">
       <section className="stage panel">
@@ -204,7 +210,7 @@ export default function Home() {
           <svg className="magic-canvas" viewBox="0 0 100 100" onPointerDown={startStroke} onPointerMove={addPoint} onPointerUp={endStroke} onPointerCancel={endStroke} aria-label="마법진 그리기 캔버스">
             <defs><linearGradient id="arcana-gradient" x1="0" y1="0" x2="1" y2="1">{selectedColors.map((tone, index) => <stop key={`${tone}-${index}`} offset={`${selectedColors.length === 1 ? 0 : (index / (selectedColors.length - 1)) * 100}%`} stopColor={tone} />)}</linearGradient><filter id="magic-glow"><feGaussianBlur stdDeviation="0.65" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
             {guides && <g className="guides"><circle cx="50" cy="50" r="44" /><circle cx="50" cy="50" r="31" />{Array.from({ length: 8 }, (_, i) => <line key={i} x1="50" y1="5" x2="50" y2="95" transform={`rotate(${i * 45} 50 50)`} />)}<path d="M50 15L58 41L85 41L63 57L71 85L50 68L29 85L37 57L15 41L42 41Z" /></g>}
-            {displayStrokes.map((stroke) => <StrokeLayer key={stroke.id} stroke={stroke} />)}
+            {displayStrokes.map((stroke, index) => <StrokeLayer key={stroke.id} stroke={stroke} pulse={index < strokes.length ? pulseOf(index) : null} />)}
             <circle className="core" cx="50" cy="50" r="1.5" />
           </svg>
           <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>
