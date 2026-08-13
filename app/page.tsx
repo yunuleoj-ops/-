@@ -9,6 +9,7 @@ import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Stroke, type S
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
 import { loadDraft, saveDraft } from "@/lib/storage";
+import FormulaSheet from "@/app/_components/FormulaSheet";
 import StrokeLayer from "@/app/_components/StrokeLayer";
 
 export default function Home() {
@@ -23,6 +24,10 @@ export default function Home() {
   const [speed, setSpeed] = useState("normal");
   const [cardOpen, setCardOpen] = useState(false);
   const [formulaOpen, setFormulaOpen] = useState(false);
+  // 두 오버레이는 상호 배타다. 한쪽을 열면 다른 쪽을 닫는다(§4.3).
+  // Task 11 의 카드 뒷면 「전체 식 보기」가 openFormula 를 그대로 호출한다(§4.5).
+  const openFormula = () => { setCardOpen(false); setFormulaOpen(true); };
+  const openCard = () => { setFormulaOpen(false); setCardOpen(true); };
   const [saved, setSaved] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "working" | "copied" | "failed">("idle");
   const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,7 +176,7 @@ export default function Home() {
           </svg>
           <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>
         </div>
-        <div className="stage-footer"><span className="footer-frame">복소 푸리에 · 중심 원점</span><div className="footer-formula"><b className={active ? "pending" : undefined}>{summarySentence}</b>{active && <i>+1 대기</i>}<code>{structureExpr}</code></div><div className="footer-actions"><button className="open-formula" onClick={() => setFormulaOpen(true)} disabled={!hasFormula} aria-haspopup="dialog" aria-expanded={formulaOpen}>식 보기</button><span className={active ? "footer-accuracy pending" : "footer-accuracy"}>정확도 {formatAccuracy(analysis.accuracy)}</span></div></div>
+        <div className="stage-footer"><span className="footer-frame">복소 푸리에 · 중심 원점</span><div className="footer-formula"><b className={active ? "pending" : undefined}>{summarySentence}</b>{active && <i>+1 대기</i>}<code>{structureExpr}</code></div><div className="footer-actions"><button className="open-formula" onClick={openFormula} disabled={!hasFormula} aria-haspopup="dialog" aria-expanded={formulaOpen}>식 보기</button><span className={active ? "footer-accuracy pending" : "footer-accuracy"}>정확도 {formatAccuracy(analysis.accuracy)}</span></div></div>
       </section>
 
       <aside className="analysis panel">
@@ -185,9 +190,10 @@ export default function Home() {
         <div className="stat-grid"><div className="stat-terms"><span>푸리에 항 수</span><b>{analysis.totalTerms}</b></div><div><span>선의 개수</span><b>{metrics.lines}</b></div><div><span>선의 길이</span><b>{metrics.length}</b></div><div><span>교차점</span><b>{metrics.intersections}</b></div><div><span>닫힌 공간</span><b>{metrics.closed}</b></div><div><span>좌우 대칭</span><b>{metrics.horizontal}%</b></div><div><span>상하 대칭</span><b>{metrics.vertical}%</b></div></div>
         <div className="effect"><span>자동 능력 효과 · {attributeLabel}</span><b>{ability}</b><p>{description}</p></div>
         <label className="speed">애니메이션 <select value={speed} onChange={(event) => setSpeed(event.target.value)}><option value="slow">느림</option><option value="normal">보통</option><option value="fast">빠름</option><option value="stop">정지</option></select></label>
-        <button className="finish" disabled={!strokes.length} onClick={() => setCardOpen(true)}>마법진 완성 <span>→</span></button>
+        <button className="finish" disabled={!strokes.length} onClick={openCard}>마법진 완성 <span>→</span></button>
       </aside>
     </section>
     {cardOpen && <div className="card-overlay" onClick={() => setCardOpen(false)}><article className="magic-card" onClick={(event) => { event.stopPropagation(); event.currentTarget.classList.toggle("flipped"); }}><div className="card-face card-front"><small>ARCANA CARD</small><h2>{ability}</h2><div className="mini-circle">{attributeGlyphs}</div><p>{attributeLabel} · {metrics.grade}</p><strong>{metrics.power}</strong><span>MAGIC POWER</span><footer>카드를 클릭해 뒷면 보기</footer></div><div className="card-face card-back"><small>ANALYSIS RECORD</small><h2>{ability}</h2><p>{description}</p><dl><div><dt>속성</dt><dd>{attributeLabel}</dd></div><div><dt>극좌표식</dt><dd>{metrics.formula}</dd></div><div><dt>복잡도</dt><dd>{metrics.complexity}</dd></div><div><dt>등급</dt><dd>{metrics.grade}</dd></div></dl><footer>클릭해서 앞면으로 돌아가기</footer></div></article><button className="share-circle" onClick={(event) => { event.stopPropagation(); shareCircle(); }} disabled={shareState === "working"}>{shareState === "copied" ? "링크가 복사되었습니다" : shareState === "failed" ? "복사에 실패했습니다" : shareState === "working" ? "링크 만드는 중…" : "◈ 마법진 공유하기"}</button></div>}
+    {formulaOpen && <FormulaSheet analysis={analysis} onClose={() => setFormulaOpen(false)} />}
   </main>;
 }
