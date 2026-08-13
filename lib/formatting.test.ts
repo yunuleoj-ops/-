@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CircleAnalysis, OperatorDesc, StrokeAnalysis } from "@/lib/analysis";
-import { formatAccuracy, formatLatex, formatOperator, formatStrokeExpr, formatStructure, formatSummarySentence } from "@/lib/formatting";
+import { formatAccuracy, formatDecomposition, formatLatex, formatOperator, formatStrokeExpr, formatStructure, formatSummarySentence } from "@/lib/formatting";
 import type { FitStats, Spectrum } from "@/lib/fourier";
 import type { Closure, Stroke, Symmetry } from "@/lib/geometry";
 import { getMetrics } from "@/lib/metrics";
@@ -207,4 +207,27 @@ describe("formatLatex", () => {
     "\\end{aligned}",
     "\\]"
   ].join("\n")));
+});
+
+// 카드 뒷면의 <dd>분해</dd> 한 줄. 카드는 수집품이라 계수를 싣지 않는다(§4.5) —
+// 이 줄이 카드가 식에 대해 말하는 전부다.
+describe("formatDecomposition", () => {
+  it("유효 획이 없으면 0획이 아니라 —", () => {
+    expect(formatDecomposition(EMPTY)).toBe("—");
+    expect(formatDecomposition(ALL_DEGENERATE)).toBe("—");
+  });
+
+  it("퇴화 획을 뺀 획 수 · 항 수 · 정확도를 한 줄로 적는다", () => {
+    expect(formatDecomposition(SINGLE)).toBe("1획 · 1항 · 99.9%");
+    expect(formatDecomposition(MIXED)).toBe("3획 · 3항 · 99.3%");
+    expect(formatDecomposition(DEGENERATE)).toBe("1획 · 0항 · 100%");
+  });
+
+  // 푸터(문장)와 카드(숫자)가 같은 그림에 대해 다른 획 수를 말하면 둘 다 신뢰를 잃는다.
+  it("푸터 요약 문장과 획 수가 어긋나지 않는다", () => {
+    for (const one of [SINGLE, MIRRORED, MIXED, DEGENERATE]) {
+      const count = formatDecomposition(one).split(" · ")[0];
+      expect(formatSummarySentence(one)).toContain(`· ${count} ·`);
+    }
+  });
 });

@@ -117,3 +117,11 @@ export const formatLatex = (analysis: CircleAnalysis) => {
   analysis.strokes.forEach((item, index) => { if (item.spectrum.kind !== "point") lines.push(latexStroke(item, index, mixed)); });
   return [...head, "\\[", "\\begin{aligned}", lines.join(" \\\\\n"), "\\end{aligned}", "\\]"].join("\n");
 };
+
+// 카드 뒷면 <dt>분해</dt> 의 값. 퇴화 획은 획 수에서 뺀다 — formatSummarySentence 와 같은 셈법이라
+// 푸터의 "3획"과 카드의 "3획"이 같은 수를 가리킨다.
+export const formatDecomposition = (analysis: CircleAnalysis): string => {
+  const live = analysis.strokes.filter((item) => item.spectrum.kind !== "point").length;
+  if (!live) return "—";
+  return `${live}획 · ${analysis.totalTerms}항 · ${formatAccuracy(analysis.accuracy)}`;
+};
