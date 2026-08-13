@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import ArcanaCard from "@/app/_components/ArcanaCard";
+import ArcanaDefs from "@/app/_components/ArcanaDefs";
 import FormulaSheet from "@/app/_components/FormulaSheet";
 import { analyze } from "@/lib/analysis";
 import { ATTRIBUTES, type Attribute } from "@/lib/attributes";
@@ -26,13 +27,18 @@ export default function SharedCard({ strokes, attributes, name }: {
   const infos = attributes.map((id) => ATTRIBUTES[id]);
   const title = cardNameOf(name, attributes, analysis.metrics.rotation);
 
-  // 두 오버레이는 캔버스에서와 같이 상호 배타다. 시트를 닫으면 카드로 돌아온다.
-  if (formulaOpen) return <FormulaSheet analysis={analysis} onClose={() => setFormulaOpen(false)} />;
-
-  return <ArcanaCard title={title}
-    attributeLabel={infos.map((info) => info.label).join(" · ")}
-    description={infos.map((info) => info.description).join(" ")}
-    analysis={analysis} hasFormula={hasFormula(analysis)}
-    action={<Link className="share-circle" href="/">◈ 나도 마법진 그리기</Link>}
-    onOpenFormula={() => setFormulaOpen(true)} />;
+  // 여기엔 캔버스가 없다. 색과 빛을 정의하는 곳도 캔버스뿐이라, 이 화면에서는 이 숨은 svg 가 그 자리를
+  // 대신한다 — 없으면 시트의 획이 그라디언트를 잃고 단색으로 떨어져 그린 사람이 본 색과 달라진다.
+  return <>
+    <svg className="arcana-defs" aria-hidden="true"><ArcanaDefs colors={infos.map((info) => info.accent)} /></svg>
+    {/* 두 오버레이는 캔버스에서와 같이 상호 배타다. 시트를 닫으면 카드로 돌아온다. */}
+    {formulaOpen
+      ? <FormulaSheet analysis={analysis} onClose={() => setFormulaOpen(false)} />
+      : <ArcanaCard title={title}
+          attributeLabel={infos.map((info) => info.label).join(" · ")}
+          description={infos.map((info) => info.description).join(" ")}
+          analysis={analysis} hasFormula={hasFormula(analysis)}
+          action={<Link className="share-circle" href="/">◈ 나도 마법진 그리기</Link>}
+          onOpenFormula={() => setFormulaOpen(true)} />}
+  </>;
 }

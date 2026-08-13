@@ -13,6 +13,7 @@ import { encodeShare } from "@/lib/share";
 import { hasFormula as canShowFormula } from "@/lib/sheet";
 import { loadDraft, saveDraft } from "@/lib/storage";
 import ArcanaCard from "@/app/_components/ArcanaCard";
+import ArcanaDefs from "@/app/_components/ArcanaDefs";
 import FormulaSheet from "@/app/_components/FormulaSheet";
 import StrokeLayer from "@/app/_components/StrokeLayer";
 import { usePulseTurn } from "@/app/_components/usePulseTurn";
@@ -208,7 +209,7 @@ export default function Home() {
         <div className="canvas-wrap">
           <div className="particles" aria-hidden="true">{Array.from({ length: 22 }, (_, i) => <i key={i} style={{ "--i": i } as CSSProperties} />)}</div>
           <svg className="magic-canvas" viewBox="0 0 100 100" onPointerDown={startStroke} onPointerMove={addPoint} onPointerUp={endStroke} onPointerCancel={endStroke} aria-label="마법진 그리기 캔버스">
-            <defs><linearGradient id="arcana-gradient" x1="0" y1="0" x2="1" y2="1">{selectedColors.map((tone, index) => <stop key={`${tone}-${index}`} offset={`${selectedColors.length === 1 ? 0 : (index / (selectedColors.length - 1)) * 100}%`} stopColor={tone} />)}</linearGradient><filter id="magic-glow"><feGaussianBlur stdDeviation="0.65" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
+            <ArcanaDefs colors={selectedColors} />
             {guides && <g className="guides"><circle cx="50" cy="50" r="44" /><circle cx="50" cy="50" r="31" />{Array.from({ length: 8 }, (_, i) => <line key={i} x1="50" y1="5" x2="50" y2="95" transform={`rotate(${i * 45} 50 50)`} />)}<path d="M50 15L58 41L85 41L63 57L71 85L50 68L29 85L37 57L15 41L42 41Z" /></g>}
             {displayStrokes.map((stroke, index) => <StrokeLayer key={stroke.id} stroke={stroke}
               pulse={pulse.step && index === pulse.index ? { duration: pulse.step, turn: pulse.turn } : null} />)}

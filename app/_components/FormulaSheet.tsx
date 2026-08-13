@@ -110,7 +110,9 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
                   <CopyButtons labels={{ plain: "평문", latex: "LaTeX" }}
                     plain={strokeCopyPlain(item, index)} latex={strokeLatexLine(item, index)} />
                 </span>
-                <em className={reached ? undefined : "miss"}>{formatAccuracy(value)}{reached ? " ✓" : ""}</em>
+                {/* ✓ 자리는 달성 여부와 무관하게 늘 비워 둔다. 글자 하나로 폭이 흔들리면
+                    획마다 정확도 숫자가 좌우로 어긋난다. */}
+                <em className={reached ? undefined : "miss"}>{formatAccuracy(value)}<b>{reached ? "✓" : ""}</b></em>
               </div>
               <TeX className="sheet-expr" tex={strokeExprTex(item, index)} />
               {isCapped(item) && <p className="sheet-note">이 획은 너무 복잡해서 여기까지 적었습니다</p>}
