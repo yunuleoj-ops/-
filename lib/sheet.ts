@@ -138,6 +138,17 @@ export const baseRows = (spectrum: Spectrum): BaseRow[] => {
 };
 
 // 복사 텍스트에 좌표 프레임과 연산자 정의를 반드시 넣는다. 빠지면 이 식은 다른 곳에서 재현 불가능하다(§4.7).
+// 획 하나만 떼어 복사할 때의 평문. 식만으로는 다시 그릴 수 없으므로 계수를 함께 싣는다.
+export const strokeCopyPlain = (item: StrokeAnalysis, index: number): string => {
+  const head = `획 ${strokeNumber(index)} · ${formatOperator(item.stroke.symmetry, item.stroke.rotationCount)} · ${termCountOf(item.spectrum)}항 · ${formatAccuracy(accuracyOf(item))}`;
+  const rows = [
+    ...baseRows(item.spectrum).map((row) => `  ${row.label}\t${row.magnitude.toFixed(2)}\t${row.phase.toFixed(2)}`),
+    ...coefficientRows(item.spectrum).map((row) => `  n=${row.n}\t${row.magnitude.toFixed(2)}\t${row.phase.toFixed(2)}`)
+  ];
+  const table = rows.length ? ["  항\t|c_n|\targ c_n", ...rows] : [];
+  return [head, formatStrokeExpr(item, index), ...table].join("\n");
+};
+
 export const sheetPlainText = (analysis: CircleAnalysis): string => {
   const head = [
     "마법연산자 · 획별 복소 푸리에 분해",

@@ -89,7 +89,7 @@
 
 
 
-.sheet-copy{padding:9px 18px;border:1px solid #c9b16b;background:#20302c;color:#f2e8d2;font:10px 'DM Mono';letter-spacing:.08em;box-shadow:0 0 0 1px #c9b16b33 inset}.sheet-copy:hover{background:#283a34;border-color:#dfc37a}
+.sheet-item-copy{margin-left:auto;opacity:.4;transition:opacity .15s}.sheet-item-copy>div{display:flex;gap:4px}.sheet-item:hover .sheet-item-copy,.sheet-item:focus-within .sheet-item-copy,.sheet-item.on .sheet-item-copy{opacity:1}.sheet-item-copy .sheet-copy{padding:3px 8px;font-size:9px;letter-spacing:.06em}.sheet-item-head em{margin-left:0}.sheet-copy{padding:9px 18px;border:1px solid #c9b16b;background:#20302c;color:#f2e8d2;font:10px 'DM Mono';letter-spacing:.08em;box-shadow:0 0 0 1px #c9b16b33 inset}.sheet-copy:hover{background:#283a34;border-color:#dfc37a}
 @media(max-width:700px){.formula-sheet{padding:20px 16px 16px}.sheet-body{grid-template-columns:1fr}.sheet-map{position:sticky;top:-1px;z-index:2;padding:6px 0 8px;background:#172321;border-bottom:1px solid #2c3b36}.dark .sheet-map{background:#19121f}.sheet-map svg{display:block;width:150px;margin:auto}}
 
 .card-close{position:absolute;top:16px;right:16px;width:30px;height:30px;line-height:1;border:1px solid #4a5a52;background:#0f1413;color:#b7c1b5;font-size:13px;cursor:pointer}

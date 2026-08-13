@@ -116,6 +116,10 @@ const latexStroke = (item: StrokeAnalysis, index: number, mixed: boolean) => {
   return `z_{${index + 1}}(t) &= ${parts.join(" + ")}${tail}`;
 };
 
+// 획 하나만 떼어 복사할 때 쓴다. formatLatex 는 여러 줄을 align 으로 묶으므로 그 정렬 기호를 뺀다.
+export const strokeLatexLine = (item: StrokeAnalysis, index: number) =>
+  `\\[ ${latexStroke(item, index, false).replace(" &=", " =")} \\]`;
+
 export const formatLatex = (analysis: CircleAnalysis) => {
   const head = [
     "% 마법연산자 · 복소 푸리에 분해",

@@ -4,13 +4,13 @@ import { useMemo, useRef, useState } from "react";
 
 import { useOverlayShell } from "@/app/_components/useOverlayShell";
 import type { CircleAnalysis } from "@/lib/analysis";
-import { formatAccuracy, formatLatex, strokeExprTex } from "@/lib/formatting";
+import { formatAccuracy, formatLatex, strokeExprTex, strokeLatexLine } from "@/lib/formatting";
 import CopyButtons from "@/app/_components/CopyButtons";
 import TeX from "@/app/_components/TeX";
 import { STROKE_WIDTH } from "@/lib/geometry";
 import {
   accuracyOf, achievedTarget, baseRows, coefficientRows, FRAME_LINE, isCapped, legendTexLines, maxTermCount, operatorLabel,
-  originalPaths, reachedTarget, reconstructedPaths, sheetPlainText, strokeNumber, termCountOf, termsAtCap
+  originalPaths, reachedTarget, reconstructedPaths, sheetPlainText, strokeCopyPlain, strokeNumber, termCountOf, termsAtCap
 } from "@/lib/sheet";
 
 export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAnalysis; onClose: () => void }) {
@@ -89,12 +89,16 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
               onMouseEnter={() => setFocus(index)} onMouseLeave={() => setFocus(null)}
               onFocus={() => setFocus(index)} onBlur={() => setFocus(null)}
               onClick={() => setFocus((current) => current === index ? null : index)}>
-              <p className="sheet-item-head">
+              <div className="sheet-item-head">
                 획 {strokeNumber(index)}
                 <i>{operatorLabel(item.operator)}</i>
                 <i>{termCountOf(item.spectrum)}항</i>
+                <span className="sheet-item-copy" onClick={(event) => event.stopPropagation()}>
+                  <CopyButtons labels={{ plain: "평문", latex: "LaTeX" }}
+                    plain={strokeCopyPlain(item, index)} latex={strokeLatexLine(item, index)} />
+                </span>
                 <em className={reached ? undefined : "miss"}>{formatAccuracy(value)}{reached ? " ✓" : ""}</em>
-              </p>
+              </div>
               <TeX className="sheet-expr" tex={strokeExprTex(item, index)} />
               {isCapped(item) && <p className="sheet-note">이 획은 너무 복잡해서 여기까지 적었습니다</p>}
               {rows.length > 0 && <details className="sheet-coef">
