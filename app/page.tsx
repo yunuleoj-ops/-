@@ -162,7 +162,7 @@ export default function Home() {
             const blocker = blockerOf(id);
             return <button key={id} onClick={() => toggleAttribute(id)} disabled={!!blocker} title={blocker ? `${ATTRIBUTES[blocker].label}과(와) 상극이라 함께 고를 수 없습니다` : ATTRIBUTES[id].description} className={attributes.includes(id) ? "on" : ""} style={{ "--element": ATTRIBUTES[id].accent } as CSSProperties}><span>{ATTRIBUTES[id].glyph}</span>{ATTRIBUTES[id].label}</button>;
             })}</div>
-            <b className="attribute-ability" title={`${attributeLabel} · ${description}`}>{ability}</b>
+            <div className="ability-card" title={description}><span className="ability-glyphs" aria-hidden="true">{attributeGlyphs}</span><span className="ability-text"><i>{attributeLabel}</i><b>{ability}</b></span></div>
           </div>
           <div className="scan-group power" title={`MAGIC POWER ${metrics.power} / 999`}>
             <b>{metrics.power}</b>

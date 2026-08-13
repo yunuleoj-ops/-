@@ -1,10 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { analyze } from "@/lib/analysis";
 import { abilityOf, ATTRIBUTES, gradientFrom, toneOf } from "@/lib/attributes";
+import { formatAccuracy, formatLatex, formatSummarySentence, structureTex } from "@/lib/formatting";
+import { sheetPlainText } from "@/lib/sheet";
+import CopyButtons from "@/app/_components/CopyButtons";
+import TeX from "@/app/_components/TeX";
 import { pathFor, STROKE_WIDTH, strokeCopies } from "@/lib/geometry";
 import { getMetrics } from "@/lib/metrics";
-import { polarFormula } from "@/lib/polar";
 import { decodeShare } from "@/lib/share";
 
 type Params = { params: Promise<{ d: string }> };
@@ -36,8 +40,9 @@ export default async function SharePage({ params }: Params) {
 
   const { strokes, attributes } = shared;
   const metrics = getMetrics(strokes);
-  // 공유 페이지는 획별 푸리에를 돌리지 않는다. 카드에 실리는 것은 외곽 실루엣 한 줄뿐이다.
-  const silhouette = polarFormula(strokes).formula;
+  // 받는 쪽도 그린 쪽과 같은 식을 봐야 한다. analyze 는 순수 함수라 서버에서 그대로 돈다.
+  const analysis = analyze(strokes);
+  const silhouette = analysis.silhouette;
   const tone = toneOf(attributes);
   const infos = attributes.map((id) => ATTRIBUTES[id]);
   const colors = infos.map((info) => info.accent);
@@ -78,7 +83,12 @@ export default async function SharePage({ params }: Params) {
       </dl>
 
       <p className="share-description">{description}</p>
-      <code className="share-formula">{silhouette}</code>
+      <div className="share-formula">
+        <TeX tex={structureTex(analysis)} block />
+        <span className="share-formula-note">{formatSummarySentence(analysis)} · 정확도 {formatAccuracy(analysis.accuracy)}</span>
+      </div>
+      {silhouette && <code className="share-silhouette">외곽 실루엣 (참고) {silhouette}</code>}
+      <CopyButtons className="share-copy" plain={sheetPlainText(analysis)} latex={formatLatex(analysis)} />
 
       <Link className="share-cta" href="/">나도 마법진 그리기 <span>→</span></Link>
     </div>

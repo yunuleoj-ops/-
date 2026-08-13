@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { useOverlayShell } from "@/app/_components/useOverlayShell";
 import type { CircleAnalysis } from "@/lib/analysis";
 import { formatAccuracy, formatLatex, strokeExprTex } from "@/lib/formatting";
+import CopyButtons from "@/app/_components/CopyButtons";
 import TeX from "@/app/_components/TeX";
 import { STROKE_WIDTH } from "@/lib/geometry";
 import {
@@ -17,10 +18,8 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
   // 시트는 열릴 때만 마운트되므로 초기값이 곧 "자동 결정된 항 수"다. 동기화 effect가 필요 없다.
   const [cap, setCap] = useState(Math.max(1, maxTerms));
   const [focus, setFocus] = useState<number | null>(null);
-  const [copied, setCopied] = useState<{ format: "plain" | "latex"; ok: boolean } | null>(null);
   const closeRef = useOverlayShell(onClose);
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const originals = useMemo(() => originalPaths(analysis), [analysis]);
   // 슬라이더를 움직여도 변환은 다시 돌지 않는다. truncate + reconstruct 만 재실행된다(§5.3).
@@ -37,16 +36,6 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
     itemRefs.current[index]?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
 
-  const copy = async (format: "plain" | "latex") => {
-    const text = format === "latex" ? formatLatex(analysis) : sheetPlainText(analysis);
-    // 모달은 복사의 의도된 목적지다. 조용히 return 하지 않는다(§4.7).
-    try { await navigator.clipboard.writeText(text); setCopied({ format, ok: true }); }
-    catch { setCopied({ format, ok: false }); }
-    if (copyTimer.current) clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopied(null), 1800);
-  };
-  const copyLabel = (format: "plain" | "latex", idle: string) =>
-    copied?.format !== format ? idle : copied.ok ? "복사됨" : "복사 실패";
 
   // sheet-close는 .formula-sheet(스크롤되는 컨테이너) 밖, .card-overlay(고정) 안에 둔다 — ArcanaCard의
   // .card-close와 같은 패턴이다(#14). 스크롤 컨테이너 안에 absolute로 두면 시트를 내릴 때 버튼이 같이
@@ -131,8 +120,7 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
       {analysis.silhouette && <p className="sheet-silhouette"><span>외곽 실루엣 (참고)</span><code>{analysis.silhouette}</code></p>}
 
       <footer className="sheet-actions">
-        <button className="sheet-copy" onClick={() => copy("plain")}>{copyLabel("plain", "평문으로 복사")}</button>
-        <button className="sheet-copy" onClick={() => copy("latex")}>{copyLabel("latex", "LaTeX로 복사")}</button>
+        <CopyButtons className="sheet-copy-group" plain={sheetPlainText(analysis)} latex={formatLatex(analysis)} />
       </footer>
     </section>
   </div>;
