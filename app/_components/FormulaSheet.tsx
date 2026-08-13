@@ -105,7 +105,7 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
               </p>
               <code className="sheet-expr">{formatStrokeExpr(item, index)}</code>
               {isCapped(item) && <p className="sheet-note">이 획은 너무 복잡해서 여기까지 적었습니다</p>}
-              {rows.length > 0 && <details className="sheet-coef" open={analysis.strokes.length === 1}>
+              {rows.length > 0 && <details className="sheet-coef">
                 <summary onClick={(event) => event.stopPropagation()}>계수 {rows.length}개 보기 <i>고급</i></summary>
                 <table className="sheet-table">
                   <thead><tr><th scope="col">n</th><th scope="col">|c_n|</th><th scope="col">arg c_n</th><th scope="col" /></tr></thead>
