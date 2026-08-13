@@ -14,11 +14,16 @@ const ASPECTS: Record<Aspect, { label: string; accent: string; description: stri
   dark: { label: "어둠 마법", accent: "#a877e8", description: "어두운 입자가 맥동하며 중심으로 모입니다." }
 };
 const ELEMENTS: Record<Element, { label: string; glyph: string; accent: string; holy: string; dark: string }> = {
-  water: { label: "물", glyph: "◈", accent: "#73c9f5", holy: "성수의 파문", dark: "심해의 속박" },
-  earth: { label: "땅", glyph: "◆", accent: "#bca56b", holy: "성역의 토대", dark: "암석의 감옥" },
-  fire: { label: "불", glyph: "✦", accent: "#f26b48", holy: "태양의 불꽃", dark: "지옥의 낙인" },
-  wind: { label: "바람", glyph: "〰", accent: "#88d6b0", holy: "천공의 날개", dark: "망령의 폭풍" }
+  water: { label: "물", glyph: "◈", accent: "#2f9cff", holy: "성수의 파문", dark: "심해의 속박" },
+  earth: { label: "땅", glyph: "◆", accent: "#9b6b3d", holy: "성역의 토대", dark: "암석의 감옥" },
+  fire: { label: "불", glyph: "✦", accent: "#ff4d3d", holy: "태양의 불꽃", dark: "지옥의 낙인" },
+  wind: { label: "바람", glyph: "〰", accent: "#9be86b", holy: "천공의 날개", dark: "망령의 폭풍" }
 };
+const toggleFrom = <T extends string,>(items: T[], item: T, fallback: T) => {
+  const next = items.includes(item) ? items.filter((current) => current !== item) : [...items, item];
+  return next.length ? next : [fallback];
+};
+const gradientFrom = (colors: string[]) => colors.length > 1 ? `linear-gradient(135deg, ${colors.join(", ")})` : colors[0];
 
 const pointDistance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 const pathFor = (points: Point[]) => points.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
@@ -59,8 +64,8 @@ export default function Home() {
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [color, setColor] = useState(PALETTE[0]);
   const [width, setWidth] = useState(1.1);
-  const [aspect, setAspect] = useState<Aspect>("holy");
-  const [element, setElement] = useState<Element>("fire");
+  const [aspects, setAspects] = useState<Aspect[]>(["holy"]);
+  const [elements, setElements] = useState<Element[]>(["fire"]);
   const [symmetry, setSymmetry] = useState<Symmetry>("rotate");
   const [rotationCount, setRotationCount] = useState(6);
   const [guides, setGuides] = useState(true);
@@ -69,8 +74,15 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const metrics = useMemo(() => getMetrics(strokes, symmetry, rotationCount), [strokes, symmetry, rotationCount]);
-  const theme = ASPECTS[aspect];
-  const elementInfo = ELEMENTS[element];
+  const aspectInfos = aspects.map((id) => ASPECTS[id]);
+  const elementInfos = elements.map((id) => ELEMENTS[id]);
+  const selectedColors = [...aspectInfos.map((item) => item.accent), ...elementInfos.map((item) => item.accent)];
+  const accent = selectedColors[0] ?? ASPECTS.holy.accent;
+  const accentGradient = gradientFrom(selectedColors);
+  const aspectLabel = aspectInfos.map((item) => item.label).join(" · ");
+  const elementLabel = elementInfos.map((item) => item.label).join(" · ");
+  const elementGlyphs = elementInfos.map((item) => item.glyph).join("");
+  const description = aspectInfos.map((item) => item.description).join(" ");
   const displayStrokes = active ? [...strokes, active] : strokes;
 
   useEffect(() => {
@@ -109,10 +121,12 @@ export default function Home() {
   };
   const undo = () => setStrokes((current) => { if (!current.length) return current; const item = current[current.length - 1]; setRedoStack((redo) => [...redo, item]); return current.slice(0, -1); });
   const redo = () => setRedoStack((current) => { if (!current.length) return current; const item = current[current.length - 1]; setStrokes((drawn) => [...drawn, item]); return current.slice(0, -1); });
-  const saveCard = () => { localStorage.setItem("arcana-card-v1", JSON.stringify({ strokes, aspect, metrics, savedAt: new Date().toISOString() })); setSaved(true); };
-  const ability = metrics.rotation >= 6 && element === "earth" ? (aspect === "holy" ? "육각 성벽" : "암석의 감옥") : elementInfo[aspect];
+  const saveCard = () => { localStorage.setItem("arcana-card-v1", JSON.stringify({ strokes, aspects, elements, metrics, savedAt: new Date().toISOString() })); setSaved(true); };
+  const ability = elements.includes("earth") && metrics.rotation >= 6
+    ? (aspects.includes("holy") ? "육각 성벽" : "암석의 감옥")
+    : elementInfos.map((elementInfo) => aspects.map((aspect) => elementInfo[aspect]).join(" · ")).join(" · ");
 
-  return <main className={`arcana ${aspect}`} style={{ "--accent": elementInfo.accent, "--speed": speed === "slow" ? "18s" : speed === "fast" ? "4s" : speed === "stop" ? "0s" : "9s" } as CSSProperties}>
+  return <main className={`arcana ${aspects.includes("dark") && !aspects.includes("holy") ? "dark" : "holy"}`} style={{ "--accent": accent, "--accent-gradient": accentGradient, "--speed": speed === "slow" ? "18s" : speed === "fast" ? "4s" : speed === "stop" ? "0s" : "9s" } as CSSProperties}>
     <header className="site-header"><div className="logo"><span>✦</span> ARCANA <b>LAB</b></div><div className="student">MAGIC CIRCLE STUDIO <i /> 실시간 분석</div><button className="save-button" onClick={saveCard}>{saved ? "저장됨" : "임시 저장"}</button></header>
     <section className="workspace">
       <aside className="tools panel">
@@ -135,9 +149,9 @@ export default function Home() {
         <div className="canvas-wrap">
           <div className="particles" aria-hidden="true">{Array.from({ length: 22 }, (_, i) => <i key={i} style={{ "--i": i } as CSSProperties} />)}</div>
           <svg className="magic-canvas" viewBox="0 0 100 100" onPointerDown={startStroke} onPointerMove={addPoint} onPointerUp={endStroke} onPointerCancel={endStroke} aria-label="마법진 그리기 캔버스">
-            <defs><filter id="magic-glow"><feGaussianBlur stdDeviation="0.65" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
+            <defs><linearGradient id="arcana-gradient" x1="0" y1="0" x2="1" y2="1">{selectedColors.map((tone, index) => <stop key={`${tone}-${index}`} offset={`${selectedColors.length === 1 ? 0 : (index / (selectedColors.length - 1)) * 100}%`} stopColor={tone} />)}</linearGradient><filter id="magic-glow"><feGaussianBlur stdDeviation="0.65" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
             {guides && <g className="guides"><circle cx="50" cy="50" r="44" /><circle cx="50" cy="50" r="31" />{Array.from({ length: 8 }, (_, i) => <line key={i} x1="50" y1="5" x2="50" y2="95" transform={`rotate(${i * 45} 50 50)`} />)}<path d="M50 15L58 41L85 41L63 57L71 85L50 68L29 85L37 57L15 41L42 41Z" /></g>}
-            {displayStrokes.flatMap((stroke, index) => Array.from({ length: copiesFor(symmetry, rotationCount) }, (_, copy) => <path key={`${index}-${copy}`} className="draw-stroke" d={pathFor(stroke.points.map((point) => transformPoint(point, symmetry, rotationCount, copy)))} style={{ stroke: stroke.color, strokeWidth: stroke.width }} />))}
+            {displayStrokes.flatMap((stroke, index) => Array.from({ length: copiesFor(symmetry, rotationCount) }, (_, copy) => <path key={`${index}-${copy}`} className="draw-stroke" d={pathFor(stroke.points.map((point) => transformPoint(point, symmetry, rotationCount, copy)))} style={{ stroke: "url(#arcana-gradient)", strokeWidth: stroke.width }} />))}
             <circle className="core" cx="50" cy="50" r="1.5" />
           </svg>
           <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>
@@ -147,16 +161,16 @@ export default function Home() {
 
       <aside className="analysis panel">
         <div className="panel-title">ARCANA SCAN <span>03</span></div>
-        <div className="aspect-switch">{(["holy", "dark"] as Aspect[]).map((id) => <button key={id} onClick={() => setAspect(id)} className={aspect === id ? "on" : ""}><span>{id === "holy" ? "✧" : "☾"}</span>{ASPECTS[id].label}</button>)}</div>
+        <div className="aspect-switch">{(["holy", "dark"] as Aspect[]).map((id) => <button key={id} onClick={() => setAspects((current) => toggleFrom(current, id, "holy"))} className={aspects.includes(id) ? "on" : ""} style={{ "--element": ASPECTS[id].accent } as CSSProperties}><span>{id === "holy" ? "✧" : "☾"}</span>{ASPECTS[id].label}</button>)}</div>
         <div className="element-title">ELEMENTAL AFFINITY</div>
-        <div className="element-switch">{(Object.keys(ELEMENTS) as Element[]).map((id) => <button key={id} onClick={() => setElement(id)} className={element === id ? "on" : ""} style={{ "--element": ELEMENTS[id].accent } as CSSProperties}><span>{ELEMENTS[id].glyph}</span>{ELEMENTS[id].label}</button>)}</div>
+        <div className="element-switch">{(Object.keys(ELEMENTS) as Element[]).map((id) => <button key={id} onClick={() => setElements((current) => toggleFrom(current, id, "fire"))} className={elements.includes(id) ? "on" : ""} style={{ "--element": ELEMENTS[id].accent } as CSSProperties}><span>{ELEMENTS[id].glyph}</span>{ELEMENTS[id].label}</button>)}</div>
         <div className="power"><span>MAGIC POWER</span><b>{metrics.power}</b><i> / 999</i><div><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div><strong>{metrics.grade}</strong></div>
         <div className="stat-grid"><div><span>선의 개수</span><b>{metrics.lines}</b></div><div><span>선의 길이</span><b>{metrics.length}</b></div><div><span>교차점</span><b>{metrics.intersections}</b></div><div><span>닫힌 공간</span><b>{metrics.closed}</b></div><div><span>좌우 대칭</span><b>{metrics.horizontal}%</b></div><div><span>상하 대칭</span><b>{metrics.vertical}%</b></div></div>
-        <div className="effect"><span>자동 능력 효과 · {elementInfo.label}</span><b>{ability}</b><p>{theme.description}</p></div>
+        <div className="effect"><span>자동 능력 효과 · {aspectLabel} · {elementLabel}</span><b>{ability}</b><p>{description}</p></div>
         <label className="speed">애니메이션 <select value={speed} onChange={(event) => setSpeed(event.target.value)}><option value="slow">느림</option><option value="normal">보통</option><option value="fast">빠름</option><option value="stop">정지</option></select></label>
         <button className="finish" disabled={!strokes.length} onClick={() => setCardOpen(true)}>마법진 완성 <span>→</span></button>
       </aside>
     </section>
-    {cardOpen && <div className="card-overlay" onClick={() => setCardOpen(false)}><article className="magic-card" onClick={(event) => { event.stopPropagation(); event.currentTarget.classList.toggle("flipped"); }}><div className="card-face card-front"><small>ARCANA CARD</small><h2>{ability}</h2><div className="mini-circle">{elementInfo.glyph}</div><p>{theme.label} · {elementInfo.label} · {metrics.grade}</p><strong>{metrics.power}</strong><span>MAGIC POWER</span><footer>카드를 클릭해 뒷면 보기</footer></div><div className="card-face card-back"><small>ANALYSIS RECORD</small><h2>{ability}</h2><p>{theme.description}</p><dl><div><dt>속성</dt><dd>{theme.label} · {elementInfo.label}</dd></div><div><dt>근사 수학식</dt><dd>{metrics.formula}</dd></div><div><dt>복잡도</dt><dd>{metrics.complexity}</dd></div><div><dt>등급</dt><dd>{metrics.grade}</dd></div></dl><footer>클릭해서 앞면으로 돌아가기</footer></div></article></div>}
+    {cardOpen && <div className="card-overlay" onClick={() => setCardOpen(false)}><article className="magic-card" onClick={(event) => { event.stopPropagation(); event.currentTarget.classList.toggle("flipped"); }}><div className="card-face card-front"><small>ARCANA CARD</small><h2>{ability}</h2><div className="mini-circle">{elementGlyphs}</div><p>{aspectLabel} · {elementLabel} · {metrics.grade}</p><strong>{metrics.power}</strong><span>MAGIC POWER</span><footer>카드를 클릭해 뒷면 보기</footer></div><div className="card-face card-back"><small>ANALYSIS RECORD</small><h2>{ability}</h2><p>{description}</p><dl><div><dt>속성</dt><dd>{aspectLabel} · {elementLabel}</dd></div><div><dt>근사 수학식</dt><dd>{metrics.formula}</dd></div><div><dt>복잡도</dt><dd>{metrics.complexity}</dd></div><div><dt>등급</dt><dd>{metrics.grade}</dd></div></dl><footer>클릭해서 앞면으로 돌아가기</footer></div></article></div>}
   </main>;
 }
