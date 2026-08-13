@@ -4,10 +4,11 @@ import { useMemo, useRef, useState } from "react";
 
 import { useOverlayShell } from "@/app/_components/useOverlayShell";
 import type { CircleAnalysis } from "@/lib/analysis";
-import { formatAccuracy, formatLatex, formatStrokeExpr } from "@/lib/formatting";
+import { formatAccuracy, formatLatex, strokeExprTex } from "@/lib/formatting";
+import TeX from "@/app/_components/TeX";
 import { STROKE_WIDTH } from "@/lib/geometry";
 import {
-  accuracyOf, achievedTarget, baseRows, coefficientRows, isCapped, legendLines, maxTermCount, operatorLabel,
+  accuracyOf, achievedTarget, baseRows, coefficientRows, FRAME_LINE, isCapped, legendTexLines, maxTermCount, operatorLabel,
   originalPaths, reachedTarget, reconstructedPaths, sheetPlainText, strokeNumber, termCountOf, termsAtCap
 } from "@/lib/sheet";
 
@@ -25,7 +26,7 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
   const originals = useMemo(() => originalPaths(analysis), [analysis]);
   // 슬라이더를 움직여도 변환은 다시 돌지 않는다. truncate + reconstruct 만 재실행된다(§5.3).
   const reconstructed = useMemo(() => reconstructedPaths(analysis, cap), [analysis, cap]);
-  const legend = useMemo(() => legendLines(analysis), [analysis]);
+  const legend = useMemo(() => legendTexLines(analysis), [analysis]);
   // 판정은 lib/sheet.achievedTarget 하나뿐이다(I3) — TARGET_ACCURACY를 여기서 다시 선언하면
   // 적합기가 목표를 옮길 때 이 배지만 조용히 어긋난다. accuracy 는 number | null 이고
   // null(유효 획 0)은 달성이 아니라 "없음"이다(E4) — achievedTarget이 그 구분을 대신 짊어진다.
@@ -80,7 +81,7 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
           </div>
         : <p className="sheet-slider empty">직선만으로 이루어진 마법진이라 항이 필요 없습니다</p>}
 
-      <div className="sheet-legend">{legend.map((line) => <span key={line}>{line}</span>)}</div>
+      <div className="sheet-legend"><span className="legend-frame">{FRAME_LINE}</span>{legend.map((line) => <TeX key={line} tex={line} />)}</div>
 
       <div className="sheet-body">
         <div className="sheet-map">
@@ -104,7 +105,7 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
                 <i>{termCountOf(item.spectrum)}항</i>
                 <em className={reached ? undefined : "miss"}>{formatAccuracy(value)}{reached ? " ✓" : ""}</em>
               </p>
-              <code className="sheet-expr">{formatStrokeExpr(item, index)}</code>
+              <TeX className="sheet-expr" tex={strokeExprTex(item, index)} />
               {isCapped(item) && <p className="sheet-note">이 획은 너무 복잡해서 여기까지 적었습니다</p>}
               {rows.length > 0 && <details className="sheet-coef">
                 <summary onClick={(event) => event.stopPropagation()}>계수 {rows.length}개 보기 <i>고급</i></summary>

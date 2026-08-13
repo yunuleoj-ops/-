@@ -4,7 +4,8 @@ import { useState } from "react";
 
 import { useOverlayShell } from "@/app/_components/useOverlayShell";
 import type { CircleAnalysis } from "@/lib/analysis";
-import { formatDecomposition, formatStructure } from "@/lib/formatting";
+import { formatDecomposition, structureTex } from "@/lib/formatting";
+import TeX from "@/app/_components/TeX";
 
 export default function ArcanaCard({
   ability, attributeLabel, attributeGlyphs, description,
@@ -49,7 +50,7 @@ export default function ArcanaCard({
         <p>{description}</p>
         <dl>
           <div><dt>속성</dt><dd>{attributeLabel}</dd></div>
-          <div><dt>구조식</dt><dd>{formatStructure(analysis)}</dd></div>
+          <div><dt>구조식</dt><dd><TeX tex={structureTex(analysis)} /></dd></div>
           <div><dt>분해</dt><dd>{formatDecomposition(analysis)}</dd></div>
           <div><dt>복잡도</dt><dd>{metrics.complexity}</dd></div>
           <div><dt>등급</dt><dd>{metrics.grade}</dd></div>

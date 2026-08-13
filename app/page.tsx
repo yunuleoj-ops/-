@@ -4,7 +4,7 @@ import { CSSProperties, PointerEvent, useEffect, useMemo, useReducer, useRef, us
 
 import { analyzeFitted, fitAll, type CircleAnalysis } from "@/lib/analysis";
 import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
-import { formatAccuracy, formatStructure, formatSummarySentence } from "@/lib/formatting";
+import { formatAccuracy, formatSummarySentence, structureTex } from "@/lib/formatting";
 import { newId, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
 import { EMPTY_HISTORY, historyReducer } from "@/lib/history";
 import { classifyClosure } from "@/lib/resample";
@@ -13,6 +13,7 @@ import { loadDraft, saveDraft } from "@/lib/storage";
 import ArcanaCard from "@/app/_components/ArcanaCard";
 import FormulaSheet from "@/app/_components/FormulaSheet";
 import StrokeLayer from "@/app/_components/StrokeLayer";
+import TeX from "@/app/_components/TeX";
 
 export default function Home() {
   const [history, dispatch] = useReducer(historyReducer, EMPTY_HISTORY);
@@ -50,7 +51,7 @@ export default function Home() {
   // 유효 획이 0이면(획이 없거나 전부 퇴화) "실패한 0%"가 아니라 "아직 없음"이다 (E4).
   const hasFormula = analysis.strokes.some((item) => item.spectrum.kind !== "point");
   const summarySentence = useMemo(() => formatSummarySentence(analysis), [analysis]);
-  const structureExpr = useMemo(() => formatStructure(analysis), [analysis]);
+  const structureExpr = useMemo(() => structureTex(analysis), [analysis]);
   const picked = ATTRIBUTE_ORDER.filter((id) => attributes.includes(id));
   const pickedInfos = picked.map((id) => ATTRIBUTES[id]);
   const selectedColors = pickedInfos.map((item) => item.accent);
@@ -206,7 +207,7 @@ export default function Home() {
           </svg>
           <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>
         </div>
-        <div className="stage-footer"><span className="footer-frame">복소 푸리에 · 중심 원점</span><div className="footer-formula"><b className={active ? "pending" : undefined}>{summarySentence}</b>{active && <i>+1 대기</i>}<code>{structureExpr}</code></div><div className="footer-actions"><button className="open-formula" onClick={openFormula} disabled={!hasFormula} aria-haspopup="dialog" aria-expanded={formulaOpen}>식 보기</button><span className={active ? "footer-accuracy pending" : "footer-accuracy"}>정확도 {formatAccuracy(analysis.accuracy)}</span></div></div>
+        <div className="stage-footer"><span className="footer-frame">복소 푸리에 · 중심 원점</span><div className="footer-formula"><b className={active ? "pending" : undefined}>{summarySentence}</b>{active && <i>+1 대기</i>}<TeX className="footer-tex" tex={structureExpr} /></div><div className="footer-actions"><button className="open-formula" onClick={openFormula} disabled={!hasFormula} aria-haspopup="dialog" aria-expanded={formulaOpen}>식 보기</button><span className={active ? "footer-accuracy pending" : "footer-accuracy"}>정확도 {formatAccuracy(analysis.accuracy)}</span></div></div>
       </section>
 
     </section>

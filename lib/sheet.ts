@@ -49,6 +49,22 @@ export const operatorLabel = (operator: OperatorDesc): string =>
     : operator.kind === "mirrorX" ? "좌우 대칭"
       : operator.kind === "mirrorY" ? "상하 대칭" : "대칭 없음";
 
+// 범례의 연산자 정의를 KaTeX 가 조판할 수 있는 형태로 낸다. 좌표 프레임 설명은 수식이 아니라 문장이므로
+// 여기 넣지 않고 화면에서 평문 그대로 쓴다.
+export const legendTexLines = (analysis: CircleAnalysis): string[] => {
+  const operators = analysis.strokes.map((item) => item.operator);
+  const counts = [...new Set(operators.filter((one) => one.kind === "rotate").map((one) => one.count))].sort((a, b) => a - b);
+  const lines = counts.map((count) => `R_k z = e^{2\\pi i k/${count}} z`);
+  if (operators.some((one) => one.kind === "mirrorX")) lines.push("M_x z = -\\overline{z}");
+  if (operators.some((one) => one.kind === "mirrorY")) lines.push("M_y z = \\overline{z}");
+  if (!lines.length) lines.push("I z = z");
+  // 열린 획이 있으면 사인 기저가 같은 복소 푸리에임을 밝힌다(스펙 R1 의 승인 조건).
+  if (analysis.strokes.some((item) => item.spectrum.kind === "open")) {
+    lines.push("\\sin(\\pi n t) = \\frac{e^{i\\pi n t} - e^{-i\\pi n t}}{2i}");
+  }
+  return lines;
+};
+
 export const legendLines = (analysis: CircleAnalysis): string[] => {
   const operators = analysis.strokes.map((item) => item.operator);
   // 회전 연산자의 지수는 회전 수다. operator.count 는 회전에서 복사본 수 = 회전 수라 그대로 쓴다(D-I).

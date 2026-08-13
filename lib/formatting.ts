@@ -56,6 +56,31 @@ export const formatStrokeExpr = (item: StrokeAnalysis, index: number) => {
   return item.spectrum.terms.length ? `${name} = z₀ + Δt + Σ b_n sin(πnt)` : `${name} = z₀ + Δt`;
 };
 
+// ---- 화면 표시용 LaTeX 조각. KaTeX 가 이 문자열을 조판한다 ----
+// 복사용 전체 문서(formatLatex)와 목적이 다르다. 여기 것은 한 줄짜리 수식이고, 사람이 읽는 설명 문구는
+// 넣지 않는다 — KaTeX 는 수식 조판기지 문단 조판기가 아니다.
+
+export const structureTex = (analysis: CircleAnalysis) => {
+  if (!drawn(analysis).length) return "Z(t) = \\emptyset";
+  const uniform = analysis.uniformSymmetry;
+  if (!uniform) return "Z(t) = \\bigcup_j S_j[z_j(t)]";
+  if (uniform.symmetry === "free") return "Z(t) = \\bigcup_j z_j(t)";
+  // uniform.count 는 이미 복사본 수다. 지수 k 는 0부터 세므로 상한이 count - 1 이다.
+  return `Z(t) = \\bigcup_{k=0}^{${uniform.count - 1}} ${LATEX_SIGN[uniform.symmetry]}^k z_j(t)`;
+};
+
+export const strokeExprTex = (item: StrokeAnalysis, index: number) => {
+  const name = `z_{${index + 1}}(t)`;
+  // 퇴화 획은 수식이 아니라 상태다. 한글을 \\text 로 감싸면 KaTeX 가 폰트를 못 찾으므로 영문 기호로 적는다.
+  if (item.spectrum.kind === "point") return `${name} = \\mathrm{const}`;
+  if (item.spectrum.kind === "closed") {
+    return item.spectrum.terms.length ? `${name} = c_0 + \\sum_n c_n e^{2\\pi i n t}` : `${name} = c_0`;
+  }
+  return item.spectrum.terms.length
+    ? `${name} = z_0 + \\Delta t + \\sum_n b_n \\sin(\\pi n t)`
+    : `${name} = z_0 + \\Delta t`;
+};
+
 // ---- 여기부터 LaTeX 전용. 위 유니코드 생성기와 문자열을 한 조각도 공유하지 않는다 ----
 // 단 하나의 예외가 formatAccuracy다 — 정확도 표기는 포맷을 가리지 않고 하나여야 한다.
 
