@@ -155,6 +155,28 @@ export default function Home() {
     <header className="site-header"><div className="logo"><span>✦</span> 마법<b>연산자</b></div><div className="student">MAGIC CIRCLE STUDIO <i /> 실시간 분석</div><button className="save-button" onClick={saveCard}>{saved ? "저장됨" : "임시 저장"}</button></header>
     <section className="workspace">
       <section className="stage panel">
+        <div className="scan-bar">
+          <div className="scan-group attributes">{ATTRIBUTE_ORDER.map((id) => {
+            const blocker = blockerOf(id);
+            return <button key={id} onClick={() => toggleAttribute(id)} disabled={!!blocker} title={blocker ? `${ATTRIBUTES[blocker].label}과(와) 상극이라 함께 고를 수 없습니다` : ATTRIBUTES[id].description} className={attributes.includes(id) ? "on" : ""} style={{ "--element": ATTRIBUTES[id].accent } as CSSProperties}><span>{ATTRIBUTES[id].glyph}</span>{ATTRIBUTES[id].label}</button>;
+          })}</div>
+          <div className="scan-group power" title={`MAGIC POWER ${metrics.power} / 999`}>
+            <b>{metrics.power}</b>
+            <div className="power-bar"><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div>
+            <strong>{metrics.grade}</strong>
+          </div>
+          <dl className="scan-group stats">
+            <div className="stat-terms"><dt>항</dt><dd>{analysis.totalTerms}</dd></div>
+            <div><dt>선</dt><dd>{metrics.lines}</dd></div>
+            <div><dt>길이</dt><dd>{metrics.length}</dd></div>
+            <div><dt>교차</dt><dd>{metrics.intersections}</dd></div>
+            <div><dt>닫힘</dt><dd>{metrics.closed}</dd></div>
+            <div><dt>좌우</dt><dd>{metrics.horizontal}%</dd></div>
+            <div><dt>상하</dt><dd>{metrics.vertical}%</dd></div>
+          </dl>
+          <div className="scan-group ability" title={`${attributeLabel} · ${description}`}><b>{ability}</b></div>
+          <button className="finish" disabled={!strokes.length} onClick={openCard}>마법진 완성 <span>→</span></button>
+        </div>
         <div className="toolbar">
           <div className="tool-group">
             <button className={tool === "pen" ? "on" : ""} onClick={() => setTool("pen")}>✎ 펜</button>
@@ -171,6 +193,7 @@ export default function Home() {
             <span>회</span>
           </div>
           <label className="guide-toggle"><input type="checkbox" checked={guides} onChange={(event) => setGuides(event.target.checked)} /> 보조선</label>
+          <label className="speed">애니메이션 <select value={speed} onChange={(event) => setSpeed(event.target.value)}><option value="slow">느림</option><option value="normal">보통</option><option value="fast">빠름</option><option value="stop">정지</option></select></label>
         </div>
         <div className="stage-bar"><span>LIVE CANVAS · AUTOMATIC ANALYSIS</span><span className="drawing-status">{tool === "eraser" ? "ERASER MODE" : "DRAWING MODE"}</span></div>
         <div className="canvas-wrap">
@@ -186,19 +209,6 @@ export default function Home() {
         <div className="stage-footer"><span className="footer-frame">복소 푸리에 · 중심 원점</span><div className="footer-formula"><b className={active ? "pending" : undefined}>{summarySentence}</b>{active && <i>+1 대기</i>}<code>{structureExpr}</code></div><div className="footer-actions"><button className="open-formula" onClick={openFormula} disabled={!hasFormula} aria-haspopup="dialog" aria-expanded={formulaOpen}>식 보기</button><span className={active ? "footer-accuracy pending" : "footer-accuracy"}>정확도 {formatAccuracy(analysis.accuracy)}</span></div></div>
       </section>
 
-      <aside className="analysis panel">
-        <div className="panel-title">ARCANA SCAN <span>03</span></div>
-        <div className="element-title">ATTRIBUTE AFFINITY <span>상극은 함께 고를 수 없습니다</span></div>
-        <div className="element-switch">{ATTRIBUTE_ORDER.map((id) => {
-          const blocker = blockerOf(id);
-          return <button key={id} onClick={() => toggleAttribute(id)} disabled={!!blocker} title={blocker ? `${ATTRIBUTES[blocker].label}과(와) 상극` : undefined} className={attributes.includes(id) ? "on" : ""} style={{ "--element": ATTRIBUTES[id].accent } as CSSProperties}><span>{ATTRIBUTES[id].glyph}</span>{ATTRIBUTES[id].label}<i>{blocker ? `${ATTRIBUTES[blocker].label} 상극` : ""}</i></button>;
-        })}</div>
-        <div className="power"><span>MAGIC POWER</span><b>{metrics.power}</b><i> / 999</i><div><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div><strong>{metrics.grade}</strong></div>
-        <div className="stat-grid"><div className="stat-terms"><span>푸리에 항 수</span><b>{analysis.totalTerms}</b></div><div><span>선의 개수</span><b>{metrics.lines}</b></div><div><span>선의 길이</span><b>{metrics.length}</b></div><div><span>교차점</span><b>{metrics.intersections}</b></div><div><span>닫힌 공간</span><b>{metrics.closed}</b></div><div><span>좌우 대칭</span><b>{metrics.horizontal}%</b></div><div><span>상하 대칭</span><b>{metrics.vertical}%</b></div></div>
-        <div className="effect"><span>자동 능력 효과 · {attributeLabel}</span><b>{ability}</b><p>{description}</p></div>
-        <label className="speed">애니메이션 <select value={speed} onChange={(event) => setSpeed(event.target.value)}><option value="slow">느림</option><option value="normal">보통</option><option value="fast">빠름</option><option value="stop">정지</option></select></label>
-        <button className="finish" disabled={!strokes.length} onClick={openCard}>마법진 완성 <span>→</span></button>
-      </aside>
     </section>
     {cardOpen && <ArcanaCard ability={ability} attributeLabel={attributeLabel} attributeGlyphs={attributeGlyphs} description={description} analysis={analysis} hasFormula={hasFormula} shareState={shareState} onShare={shareCircle} onClose={() => setCardOpen(false)} onOpenFormula={openFormula} />}
     {formulaOpen && <FormulaSheet analysis={analysis} onClose={() => setFormulaOpen(false)} />}
