@@ -1,0 +1,191 @@
+// 이 스위트가 지키는 것: 정규화 상수, 대역 경계, 재매개화 균등성(T6),
+// 그리고 "정확도가 거짓말하지 않는다"는 이 기능의 유일한 판매 근거(뒤 describe).
+
+import { describe, expect, it } from "vitest";
+import { densify, resampleUniform, toComplex, type Complex } from "@/lib/resample";
+import { amplitude, bandLimit, dftClosed, normOf, sampleCount } from "@/lib/fourier";
+import type { Point } from "@/lib/geometry";
+
+// ── 픽스처: 캔버스 좌표(0..100, y 아래로 증가) 위의 닫힌 도형 제어점 ──
+const circlePoints = (radius: number, count: number): Point[] =>
+  Array.from({ length: count }, (_, i) => {
+    const angle = (Math.PI * 2 * i) / count;
+    return { x: 50 + radius * Math.cos(angle), y: 50 - radius * Math.sin(angle) };
+  });
+
+// 꼭짓점 목록을 step 간격으로 찍어 모서리가 살아 있는 폐곡선을 만든다(꼭짓점 중복 없음).
+const edgeLoop = (vertices: Point[], step: number): Point[] => {
+  const out: Point[] = [];
+  for (let i = 0; i < vertices.length; i += 1) {
+    const from = vertices[i];
+    const to = vertices[(i + 1) % vertices.length];
+    const parts = Math.max(1, Math.round(Math.hypot(to.x - from.x, to.y - from.y) / step));
+    for (let s = 0; s < parts; s += 1) {
+      out.push({ x: from.x + ((to.x - from.x) * s) / parts, y: from.y + ((to.y - from.y) * s) / parts });
+    }
+  }
+  return out;
+};
+
+const regularPolygon = (sides: number, radius: number): Point[] =>
+  Array.from({ length: sides }, (_, i) => {
+    const angle = Math.PI / 2 + (Math.PI * 2 * i) / sides;
+    return { x: 50 + radius * Math.cos(angle), y: 50 - radius * Math.sin(angle) };
+  });
+
+const starPolygon = (points: number, outer: number): Point[] => {
+  const inner = (outer * Math.cos((Math.PI * 2) / points)) / Math.cos(Math.PI / points);
+  return Array.from({ length: points * 2 }, (_, i) => {
+    const angle = Math.PI / 2 + (Math.PI * i) / points;
+    const radius = i % 2 === 0 ? outer : inner;
+    return { x: 50 + radius * Math.cos(angle), y: 50 - radius * Math.sin(angle) };
+  });
+};
+
+const CIRCLE = circlePoints(30, 64);
+const SQUARE = edgeLoop([{ x: 20, y: 20 }, { x: 80, y: 20 }, { x: 80, y: 80 }, { x: 20, y: 80 }], 1);
+const HEXAGON = edgeLoop(regularPolygon(6, 30), 1);
+const PENTAGRAM = edgeLoop(starPolygon(5, 30), 1);
+
+// 분석 파이프라인과 같은 경로로 표본을 만든다: densify → resampleUniform → toComplex
+const closedSamples = (points: Point[]) => {
+  const { poly, length } = densify(points, true);
+  const P = sampleCount(length);
+  return { P, length, samples: resampleUniform(poly, length, P, true).map(toComplex) };
+};
+
+describe("Task 3 densify 계약 게이트", () => {
+  // 이 태스크의 모든 기대값이 이 계약 위에 서 있다(D-G). 여기가 빨강이면 Task 3이 바뀐 것이고,
+  // 그 경우 아래 원 픽스처 숫자를 고칠 게 아니라 Task 3의 변경을 되돌려야 한다.
+  it("닫힘은 직선 현으로 마감하고 Catmull-Rom 이웃을 순환으로 감지 않는다", () => {
+    const open = densify(CIRCLE, false);
+    const closed = densify(CIRCLE, true);
+    const chord = Math.hypot(CIRCLE[63].x - CIRCLE[0].x, CIRCLE[63].y - CIRCLE[0].y);
+    expect(chord).toBeCloseTo(60 * Math.sin(Math.PI / 64), 9);   // 2r·sin(π/64) = 2.944060
+    expect(closed.length - open.length).toBeCloseTo(chord, 9);
+    expect(open.length).toBeCloseTo(185.5481, 3);
+    expect(closed.length).toBeCloseTo(188.4922, 3);
+    expect(sampleCount(closed.length)).toBe(378);
+
+    // 닫는 세그먼트가 직선 현이므로 그 중점이 반지름 안쪽으로 30(1−cos(π/64)) = 0.036136 들어온다.
+    // 순환으로 감았다면 이 dip 이 1e-3 이하로 떨어지고 원의 maxError 가 2e-4 로 내려간다.
+    let dip = 0;
+    for (const point of closed.poly) dip = Math.max(dip, 30 - Math.hypot(point.x - 50, point.y - 50));
+    expect(dip).toBeCloseTo(30 * (1 - Math.cos(Math.PI / 64)), 9);
+    expect(resampleUniform(closed.poly, closed.length, 378, true)).toHaveLength(378);
+  });
+});
+
+describe("표본 수와 후보 대역", () => {
+  it("P는 round(2L)을 128..512로 자르고 짝수로 올린다", () => {
+    expect(sampleCount(10)).toBe(128);
+    expect(sampleCount(64)).toBe(128);
+    expect(sampleCount(100)).toBe(200);
+    expect(sampleCount(94.3)).toBe(190);        // round(188.6)=189 → 짝수 보정
+    expect(sampleCount(188.4922)).toBe(378);    // 반지름 30 원
+    expect(sampleCount(255.7)).toBe(512);       // round(511.4)=511 → 512, 상한을 넘지 않는다
+    expect(sampleCount(4000)).toBe(512);
+  });
+
+  it("K_max는 floor(P/4)와 64 중 작은 값이다", () => {
+    expect(bandLimit(128)).toBe(32);
+    expect(bandLimit(200)).toBe(50);
+    expect(bandLimit(256)).toBe(64);
+    expect(bandLimit(378)).toBe(64);
+    expect(bandLimit(512)).toBe(64);
+  });
+});
+
+describe("정확도 분모 normOf", () => {
+  it("중심 대비 RMS 거리이고 평행이동에 불변이다", () => {
+    expect(normOf([])).toBe(0);
+    expect(normOf([{ re: 7, im: -3 }])).toBe(0);
+    const ring: Complex[] = [{ re: 5, im: 0 }, { re: 0, im: 5 }, { re: -5, im: 0 }, { re: 0, im: -5 }];
+    expect(normOf(ring)).toBeCloseTo(5, 12);
+    expect(normOf(ring.map((z) => ({ re: z.re + 123, im: z.im - 77 })))).toBeCloseTo(5, 12);
+  });
+
+  it("닫힘에서는 c₀ 기준 분산과 같은 값이다", () => {
+    const { P, samples } = closedSamples(CIRCLE);
+    const { c0 } = dftClosed(samples, 1);
+    let energy = 0;
+    for (const z of samples) energy += z.re * z.re + z.im * z.im;
+    expect(normOf(samples)).toBeCloseTo(Math.sqrt(energy / P - (c0.re * c0.re + c0.im * c0.im)), 12);
+    expect(normOf(samples)).toBeCloseTo(29.9991, 4);   // 실측 29.999100446
+  });
+});
+
+describe("테이블 DFT", () => {
+  const P = 128;
+  // z_k = (4 − 6i) + (5 + i)e^(2πi·3k/P) + (2 + 3i)e^(−2πi·7k/P)
+  const synthetic: Complex[] = Array.from({ length: P }, (_, k) => {
+    const t = (Math.PI * 2 * k) / P;
+    const a = { re: 5, im: 1 };
+    const b = { re: 2, im: 3 };
+    return {
+      re: 4 + a.re * Math.cos(3 * t) - a.im * Math.sin(3 * t) + b.re * Math.cos(-7 * t) - b.im * Math.sin(-7 * t),
+      im: -6 + a.re * Math.sin(3 * t) + a.im * Math.cos(3 * t) + b.re * Math.sin(-7 * t) + b.im * Math.cos(-7 * t)
+    };
+  });
+
+  it("대역 제한 신호의 계수를 그대로 되돌린다", () => {
+    const { c0, terms, cosTable, sinTable } = dftClosed(synthetic, 12);
+    expect(terms).toHaveLength(24);              // n = −12..12, 0 제외
+    expect(cosTable).toHaveLength(P);            // Task 5의 fitOpen 이 이 두 표를 재사용한다(D-D)
+    expect(sinTable).toHaveLength(P);
+    expect(c0.re).toBeCloseTo(4, 12);
+    expect(c0.im).toBeCloseTo(-6, 12);
+    const at = (n: number) => terms.find((term) => term.n === n)!;
+    expect(at(3).re).toBeCloseTo(5, 12);
+    expect(at(3).im).toBeCloseTo(1, 12);
+    expect(at(-7).re).toBeCloseTo(2, 12);
+    expect(at(-7).im).toBeCloseTo(3, 12);
+    for (const term of terms) {
+      if (term.n !== 3 && term.n !== -7) expect(amplitude(term)).toBeLessThan(1e-12);
+    }
+  });
+
+  it("파스발: 전 대역 Σ|c_n|² = mean|z − c₀|²", () => {
+    const { c0, terms } = dftClosed(synthetic, P / 2);
+    // n = ±P/2는 같은 빈의 별칭이므로 한쪽만 센다(스펙 E10).
+    const sum = terms.filter((term) => term.n > -P / 2).reduce((total, term) => total + term.re ** 2 + term.im ** 2, 0);
+    const mean = synthetic.reduce((total, z) => total + (z.re - c0.re) ** 2 + (z.im - c0.im) ** 2, 0) / P;
+    expect(sum).toBeCloseTo(39, 9);              // |5+i|² + |2+3i|² = 26 + 13
+    expect(Math.abs(sum - mean)).toBeLessThan(1e-9);   // 실측 2.13e-14
+  });
+
+  it("재샘플한 원에서도 파스발이 성립하고 ±P/2는 같은 값이다", () => {
+    const { P: count, samples } = closedSamples(CIRCLE);
+    expect(count).toBe(378);
+    const { c0, terms } = dftClosed(samples, count / 2);
+    const sum = terms.filter((term) => term.n > -count / 2).reduce((total, term) => total + term.re ** 2 + term.im ** 2, 0);
+    const mean = samples.reduce((total, z) => total + (z.re - c0.re) ** 2 + (z.im - c0.im) ** 2, 0) / count;
+    expect(Math.abs(sum - mean)).toBeLessThan(1e-9);   // 실측 9.10e-13
+    const low = terms.find((term) => term.n === -count / 2)!;
+    const high = terms.find((term) => term.n === count / 2)!;
+    expect(low.re).toBe(high.re);
+    expect(low.im).toBe(high.im);
+  });
+
+  it("T6 — 호길이 항등식 Σ(2πn)²|c_n|² = L² (전 대역)", () => {
+    // 스펙 §1.9-1: 재매개화 버그·좌표 부호 실수·정규화 상수 실수를 한 줄로 잡는 유일한 자체 검증이다.
+    // 호길이 균등 매개화에서 |z'(t)| = L 이므로 ∫|z'|² dt = Σ(2πn)²|c_n|² = L².
+    // 다각형은 코너 이산화 때문에 0.3% 이내로만 맞는다(스펙이 0.7% 이내라고 적은 그 오차).
+    const table = [
+      { name: "circle", points: CIRCLE, tolerance: 1e-4 },      // 실측 2.47e-6
+      { name: "square", points: SQUARE, tolerance: 5e-3 },      // 실측 1.22e-3
+      { name: "hexagon", points: HEXAGON, tolerance: 5e-3 },    // 실측 8.01e-4
+      { name: "pentagram", points: PENTAGRAM, tolerance: 5e-3 } // 실측 2.26e-3
+    ];
+    for (const row of table) {
+      const { P: count, length, samples } = closedSamples(row.points);
+      const { terms } = dftClosed(samples, count / 2);
+      let total = 0;
+      for (const term of terms) {
+        if (term.n <= -count / 2) continue;   // ±P/2 별칭은 한쪽만
+        total += (2 * Math.PI * term.n) ** 2 * (term.re ** 2 + term.im ** 2);
+      }
+      expect(Math.abs(total - length ** 2) / length ** 2, row.name).toBeLessThan(row.tolerance);
+    }
+  });
+});
