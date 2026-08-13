@@ -32,7 +32,7 @@
 .scan-bar .score .stats{flex-wrap:wrap}
 .sheet-item-head em{display:inline-block;min-width:4.4em;text-align:right;font-variant-numeric:tabular-nums}
 .sheet-item-head em b{display:inline-block;width:.9em;font-weight:400}
-.card-name{width:100%;margin:22px 0 8px;padding:2px 4px;border:0;border-bottom:1px dashed #c9b16b80;background:transparent;color:inherit;font:600 29px 'Playfair Display';text-align:center;cursor:text}
+.card-name-field{position:relative;display:block;margin:22px 0 8px}.card-name{width:100%;padding:2px 1.2em;border:0;border-bottom:1px dashed #c9b16b80;background:transparent;color:inherit;font:600 29px 'Playfair Display';text-align:center;cursor:text}.card-name-field i{position:absolute;right:.2em;top:50%;transform:translateY(-50%);font-style:normal;font-size:15px;line-height:1;color:#c9b16b;opacity:.7;pointer-events:none;transition:opacity .15s,color .15s}.card-name-field:hover i,.card-name-field:focus-within i{opacity:1;color:var(--accent)}
 .card-name:hover{border-bottom-color:var(--accent)}
 .card-name:focus{outline:0;border-bottom-color:var(--accent);background:#ffffff0d}
 .card-name::placeholder{color:#f2e8d2;opacity:.5}

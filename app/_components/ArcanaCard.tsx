@@ -49,10 +49,13 @@ export default function ArcanaCard({
         <small>ARCANA CARD</small>
         {/* 이름은 카드의 얼굴이라 앞면에서 바로 고친다. stopPropagation 이 없으면 글자를 찍는 클릭마다 카드가 뒤집힌다. */}
         {onRename
-          ? <input className="card-name" value={draftName ?? ""} placeholder={title} maxLength={MAX_NAME_LENGTH}
-              aria-label="카드 이름" title="카드 이름을 직접 지을 수 있습니다"
-              onClick={(event) => event.stopPropagation()}
-              onChange={(event) => onRename(event.target.value)} />
+          ? <label className="card-name-field" onClick={(event) => event.stopPropagation()}>
+              <input className="card-name" value={draftName ?? ""} placeholder={title} maxLength={MAX_NAME_LENGTH}
+                aria-label="카드 이름" title="카드 이름을 직접 지을 수 있습니다"
+                onChange={(event) => onRename(event.target.value)} />
+              {/* 연필은 눈에만 보이는 표시다. 클릭은 label 이 입력창으로 넘겨주므로 아이콘 자신은 이벤트를 받지 않는다. */}
+              <i aria-hidden="true">✎</i>
+            </label>
           : <h2>{title}</h2>}
         <div className="mini-circle">
           <svg viewBox="0 0 100 100" aria-hidden="true">
