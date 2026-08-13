@@ -12,7 +12,7 @@ import { usePulseTurn } from "@/app/_components/usePulseTurn";
 import TeX from "@/app/_components/TeX";
 
 export default function ArcanaCard({
-  title, draftName, onRename, attributeLabel, description, cycle,
+  title, draftName, onRename, attributeLabel, description,
   analysis, hasFormula, action, onClose, onOpenFormula
 }: {
   // 화면에 찍히는 이름. 사용자가 지은 이름이 없으면 속성이 정해 준 능력명이다(lib/naming.cardNameOf).
@@ -23,7 +23,6 @@ export default function ArcanaCard({
   onRename?: (value: string) => void;
   attributeLabel: string;
   description: string;
-  cycle: number;
   analysis: CircleAnalysis;
   hasFormula: boolean;
   // 카드 아래 한 자리. 그린 사람에게는 「공유하기」, 받은 사람에게는 「나도 마법진 그리기」다.
@@ -40,7 +39,7 @@ export default function ArcanaCard({
   const metrics = analysis.metrics;
   const paths = originalPaths(analysis);
   // 캔버스와 같은 규칙으로 한 획씩 차례로 빛난다.
-  const pulse = usePulseTurn(analysis.strokes.length, cycle);
+  const pulse = usePulseTurn(analysis.strokes.length);
 
   return <div className="card-overlay" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
     {onClose && <button className="card-close" ref={closeRef} onClick={onClose} aria-label="닫기">✕</button>}

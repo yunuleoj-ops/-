@@ -29,9 +29,6 @@ export default function Home() {
   const [symmetry, setSymmetry] = useState<Symmetry>("rotate");
   const [rotationCount, setRotationCount] = useState(6);
   const [guides, setGuides] = useState(true);
-  const [speed, setSpeed] = useState("normal");
-  // 한 바퀴 도는 데 걸리는 시간. 정지는 0이고, 이때 펄스도 함께 멈춘다.
-  const cycle = speed === "slow" ? 18 : speed === "fast" ? 4 : speed === "stop" ? 0 : 9;
   const [cardOpen, setCardOpen] = useState(false);
   const [formulaOpen, setFormulaOpen] = useState(false);
   // 두 오버레이는 상호 배타다. 한쪽을 열면 다른 쪽을 닫는다(§4.3).
@@ -75,7 +72,7 @@ export default function Home() {
     return next.length ? next : current;
   });
   const displayStrokes = active ? [...strokes, active] : strokes;
-  const pulse = usePulseTurn(strokes.length, cycle);
+  const pulse = usePulseTurn(strokes.length);
   // 펄스는 확정된 획에만 붙는다. 그리는 중인 획은 아직 끝점이 없어 "시작에서 끝까지"가 성립하지 않는다.
 
   // 냉시작 배치 적합만 유휴 시간으로 미룬다. requestIdleCallback 이 없는 브라우저는 setTimeout 으로 떨어진다.
@@ -162,7 +159,7 @@ export default function Home() {
   // 카드 이름 하나로 화면·링크·공유 시트가 같은 이름을 부른다.
   const title = cardNameOf(cardName, picked, metrics.rotation);
 
-  return <main className={`arcana ${tone}`} style={{ "--accent": accent, "--accent-gradient": accentGradient, "--speed": `${cycle}s` } as CSSProperties}>
+  return <main className={`arcana ${tone}`} style={{ "--accent": accent, "--accent-gradient": accentGradient } as CSSProperties}>
     <header className="site-header"><div className="logo"><span>✦</span> 마법<b>연산자</b></div><div className="student">MAGIC CIRCLE STUDIO <i /> 실시간 분석</div><button className="save-button" onClick={saveCard}>{saved ? "저장됨" : "임시 저장"}</button></header>
     <section className="workspace">
       <section className="stage panel">
@@ -206,7 +203,6 @@ export default function Home() {
             <span>회</span>
           </div>
           <label className="guide-toggle"><input type="checkbox" checked={guides} onChange={(event) => setGuides(event.target.checked)} /> 보조선</label>
-          <label className="speed">애니메이션 <select value={speed} onChange={(event) => setSpeed(event.target.value)}><option value="slow">느림</option><option value="normal">보통</option><option value="fast">빠름</option><option value="stop">정지</option></select></label>
         </div>
         <div className="stage-bar"><span>LIVE CANVAS · AUTOMATIC ANALYSIS</span><span className="drawing-status">{tool === "eraser" ? "ERASER MODE" : "DRAWING MODE"}</span></div>
         <div className="canvas-wrap">
@@ -225,7 +221,7 @@ export default function Home() {
 
     </section>
     {cardOpen && <ArcanaCard title={title} draftName={cardName} onRename={setCardName}
-      attributeLabel={attributeLabel} description={description} cycle={cycle} analysis={analysis} hasFormula={hasFormula}
+      attributeLabel={attributeLabel} description={description} analysis={analysis} hasFormula={hasFormula}
       action={<button className="share-circle" onClick={shareCircle} disabled={shareState === "working"}>
         {shareState === "copied" ? "링크가 복사되었습니다"
           : shareState === "failed" ? "복사에 실패했습니다"

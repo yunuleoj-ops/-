@@ -39,7 +39,7 @@ export default async function SharePage({ params }: Params) {
   const colors = attributes.map((id) => ATTRIBUTES[id].accent);
 
   return <main className={`share ${toneOf(attributes)}`}
-    style={{ "--accent": colors[0], "--accent-gradient": gradientFrom(colors), "--speed": "9s" } as React.CSSProperties}>
+    style={{ "--accent": colors[0], "--accent-gradient": gradientFrom(colors) } as React.CSSProperties}>
     <SharedCard strokes={strokes} attributes={attributes} name={name ?? ""} />
   </main>;
 }

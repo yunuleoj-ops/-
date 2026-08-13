@@ -11,9 +11,9 @@ import type { Stroke } from "@/lib/geometry";
 import { cardNameOf } from "@/lib/naming";
 import { hasFormula } from "@/lib/sheet";
 
-// 공유 링크로 들어온 사람은 그린 사람이 본 것과 같은 카드를 본다 — 앞뒤 뒤집기도, 전체 식 보기도 그대로다.
-// 다른 점 셋: 이름을 고칠 수 없고, 닫을 화면이 없어 ✕ 가 없고, 아래 버튼이 「나도 마법진 그리기」다.
-const CYCLE = 9; // 캔버스의 "보통" 속도. 공유 화면에는 속도 선택이 없다.
+// 공유 링크로 들어온 사람은 그린 사람이 본 것과 같은 카드를 본다 — 앞뒤 뒤집기도, 전체 식 보기도,
+// 파동 속도도 그대로다. 다른 점 셋: 이름을 고칠 수 없고, 닫을 화면이 없어 ✕ 가 없고,
+// 아래 버튼이 「나도 마법진 그리기」다.
 
 export default function SharedCard({ strokes, attributes, name }: {
   strokes: Stroke[];
@@ -32,7 +32,7 @@ export default function SharedCard({ strokes, attributes, name }: {
   return <ArcanaCard title={title}
     attributeLabel={infos.map((info) => info.label).join(" · ")}
     description={infos.map((info) => info.description).join(" ")}
-    cycle={CYCLE} analysis={analysis} hasFormula={hasFormula(analysis)}
+    analysis={analysis} hasFormula={hasFormula(analysis)}
     action={<Link className="share-circle" href="/">◈ 나도 마법진 그리기</Link>}
     onOpenFormula={() => setFormulaOpen(true)} />;
 }
