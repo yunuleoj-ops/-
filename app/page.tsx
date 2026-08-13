@@ -3,19 +3,12 @@
 import { CSSProperties, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
-import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
+import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
 import { getMetrics } from "@/lib/metrics";
+import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
 import { loadDraft, saveDraft } from "@/lib/storage";
 import StrokeLayer from "@/app/_components/StrokeLayer";
-
-// E2: 점 하나를 톡 찍은 것은 획이 아니다. 100 단위 뷰박스에서 호길이 1.0은 눈에 보이지도 않는다.
-const MIN_STROKE_LENGTH = 1;
-const polylineLength = (points: Point[]) => {
-  let total = 0;
-  for (let index = 1; index < points.length; index += 1) total += pointDistance(points[index - 1], points[index]);
-  return total;
-};
 
 export default function Home() {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -97,9 +90,13 @@ export default function Home() {
   const endStroke = () => {
     if (active && active.points.length > 2) {
       const points = simplify(active.points, SIMPLIFY_TOLERANCE);
-      // Task 3이 여기에 closure: classifyClosure(points)를 붙여 커밋 시 1회 판정으로 동결한다.
-      if (polylineLength(points) >= MIN_STROKE_LENGTH) {
-        setStrokes((current) => [...current, { ...active, points }]); setRedoStack([]);
+      // 커밋 시 1회 판정해 동결한다(E7). 매번 다시 재면 임계 근처에서 같은 그림의 식 형태가 흔들린다.
+      const closure = classifyClosure(points);
+      // E2 입력단: 호길이 1.0 미만은 획이 아니라 탭이다. classifyClosure 가 이미 그 길이를 재고
+      // !(L >= POINT_ARC_LENGTH) 일 때 "point" 를 돌려주므로 길이를 두 번 재지 않는다.
+      if (closure !== "point") {
+        setStrokes((current) => [...current, { ...active, points, closure }]);
+        setRedoStack([]);
       }
     }
     setActive(null);
