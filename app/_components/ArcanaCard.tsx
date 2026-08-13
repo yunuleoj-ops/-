@@ -41,7 +41,7 @@ export default function ArcanaCard({
   // 캔버스와 같은 규칙으로 한 획씩 차례로 빛난다.
   const pulse = usePulseTurn(analysis.strokes.length);
 
-  return <div className="card-overlay" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
+  return <div className="card-overlay card-stage" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
     {onClose && <button className="card-close" ref={closeRef} onClick={onClose} aria-label="닫기">✕</button>}
     <article className={flipped ? "magic-card flipped" : "magic-card"}
       onClick={(event) => { event.stopPropagation(); setFlipped((current) => !current); }}>
