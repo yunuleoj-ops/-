@@ -4,6 +4,7 @@ import { CSSProperties, PointerEvent, useEffect, useMemo, useRef, useState } fro
 
 import { analyzeFitted, fitAll, type CircleAnalysis } from "@/lib/analysis";
 import { abilityOf, ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
+import { formatAccuracy, formatStructure, formatSummarySentence } from "@/lib/formatting";
 import { newId, pointDistance, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
@@ -21,10 +22,9 @@ export default function Home() {
   const [guides, setGuides] = useState(true);
   const [speed, setSpeed] = useState("normal");
   const [cardOpen, setCardOpen] = useState(false);
+  const [formulaOpen, setFormulaOpen] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "working" | "copied" | "failed">("idle");
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restored = useRef(false);
@@ -35,6 +35,10 @@ export default function Home() {
   // 나눠 두는 진짜 이유가 이 메모 경계다. 그리는 중에 계수가 초당 60회 튀지 않는다.
   const analysis: CircleAnalysis = useMemo(() => analyzeFitted(strokes, spectra), [strokes, spectra]);
   const metrics = analysis.metrics;
+  // 유효 획이 0이면(획이 없거나 전부 퇴화) "실패한 0%"가 아니라 "아직 없음"이다 (E4).
+  const hasFormula = analysis.strokes.some((item) => item.spectrum.kind !== "point");
+  const summarySentence = useMemo(() => formatSummarySentence(analysis), [analysis]);
+  const structureExpr = useMemo(() => formatStructure(analysis), [analysis]);
   const picked = ATTRIBUTE_ORDER.filter((id) => attributes.includes(id));
   const pickedInfos = picked.map((id) => ATTRIBUTES[id]);
   const selectedColors = pickedInfos.map((item) => item.accent);
@@ -72,7 +76,6 @@ export default function Home() {
   }, [strokes]);
   useEffect(() => () => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
-    if (copyTimer.current) clearTimeout(copyTimer.current);
     if (shareTimer.current) clearTimeout(shareTimer.current);
   }, []);
 
@@ -118,12 +121,6 @@ export default function Home() {
   };
   const undo = () => setStrokes((current) => { if (!current.length) return current; const item = current[current.length - 1]; setRedoStack((redo) => [...redo, item]); return current.slice(0, -1); });
   const redo = () => setRedoStack((current) => { if (!current.length) return current; const item = current[current.length - 1]; setStrokes((drawn) => [...drawn, item]); return current.slice(0, -1); });
-  const copyFormula = async () => {
-    try { await navigator.clipboard.writeText(metrics.formula); } catch { return; }
-    setCopied(true);
-    if (copyTimer.current) clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopied(false), 1600);
-  };
   const saveCard = () => { localStorage.setItem("arcana-card-v1", JSON.stringify({ version: 2, strokes, attributes, metrics, savedAt: new Date().toISOString() })); setSaved(true); };
   // 링크에 마법진이 통째로 들어간다. 네이티브 공유 시트가 있으면 그쪽을, 없으면 클립보드를 쓴다.
   const shareCircle = async () => {
@@ -174,7 +171,7 @@ export default function Home() {
           </svg>
           <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>
         </div>
-        <div className="stage-footer"><span>극좌표식 · 원점 (0,0)</span><code>{metrics.formula}</code><button className="copy-formula" onClick={copyFormula} disabled={!strokes.length}>{copied ? "복사됨" : "복사"}</button><span>정확도 {metrics.accuracy}%</span></div>
+        <div className="stage-footer"><span className="footer-frame">복소 푸리에 · 중심 원점</span><div className="footer-formula"><b className={active ? "pending" : undefined}>{summarySentence}</b>{active && <i>+1 대기</i>}<code>{structureExpr}</code></div><div className="footer-actions"><button className="open-formula" onClick={() => setFormulaOpen(true)} disabled={!hasFormula} aria-haspopup="dialog" aria-expanded={formulaOpen}>식 보기</button><span className={active ? "footer-accuracy pending" : "footer-accuracy"}>정확도 {formatAccuracy(analysis.accuracy)}</span></div></div>
       </section>
 
       <aside className="analysis panel">
@@ -185,7 +182,7 @@ export default function Home() {
           return <button key={id} onClick={() => toggleAttribute(id)} disabled={!!blocker} title={blocker ? `${ATTRIBUTES[blocker].label}과(와) 상극` : undefined} className={attributes.includes(id) ? "on" : ""} style={{ "--element": ATTRIBUTES[id].accent } as CSSProperties}><span>{ATTRIBUTES[id].glyph}</span>{ATTRIBUTES[id].label}<i>{blocker ? `${ATTRIBUTES[blocker].label} 상극` : ""}</i></button>;
         })}</div>
         <div className="power"><span>MAGIC POWER</span><b>{metrics.power}</b><i> / 999</i><div><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div><strong>{metrics.grade}</strong></div>
-        <div className="stat-grid"><div><span>선의 개수</span><b>{metrics.lines}</b></div><div><span>선의 길이</span><b>{metrics.length}</b></div><div><span>교차점</span><b>{metrics.intersections}</b></div><div><span>닫힌 공간</span><b>{metrics.closed}</b></div><div><span>좌우 대칭</span><b>{metrics.horizontal}%</b></div><div><span>상하 대칭</span><b>{metrics.vertical}%</b></div></div>
+        <div className="stat-grid"><div className="stat-terms"><span>푸리에 항 수</span><b>{analysis.totalTerms}</b></div><div><span>선의 개수</span><b>{metrics.lines}</b></div><div><span>선의 길이</span><b>{metrics.length}</b></div><div><span>교차점</span><b>{metrics.intersections}</b></div><div><span>닫힌 공간</span><b>{metrics.closed}</b></div><div><span>좌우 대칭</span><b>{metrics.horizontal}%</b></div><div><span>상하 대칭</span><b>{metrics.vertical}%</b></div></div>
         <div className="effect"><span>자동 능력 효과 · {attributeLabel}</span><b>{ability}</b><p>{description}</p></div>
         <label className="speed">애니메이션 <select value={speed} onChange={(event) => setSpeed(event.target.value)}><option value="slow">느림</option><option value="normal">보통</option><option value="fast">빠름</option><option value="stop">정지</option></select></label>
         <button className="finish" disabled={!strokes.length} onClick={() => setCardOpen(true)}>마법진 완성 <span>→</span></button>
