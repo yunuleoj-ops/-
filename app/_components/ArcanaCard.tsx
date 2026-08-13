@@ -5,16 +5,19 @@ import { useState } from "react";
 import { useOverlayShell } from "@/app/_components/useOverlayShell";
 import type { CircleAnalysis } from "@/lib/analysis";
 import { formatDecomposition, structureTex } from "@/lib/formatting";
+import { STROKE_WIDTH } from "@/lib/geometry";
+import { originalPaths } from "@/lib/sheet";
+import { usePulseTurn } from "@/app/_components/usePulseTurn";
 import TeX from "@/app/_components/TeX";
 
 export default function ArcanaCard({
-  ability, attributeLabel, attributeGlyphs, description,
+  ability, attributeLabel, description, cycle,
   analysis, hasFormula, shareState, onShare, onClose, onOpenFormula
 }: {
   ability: string;
   attributeLabel: string;
-  attributeGlyphs: string;
   description: string;
+  cycle: number;
   analysis: CircleAnalysis;
   hasFormula: boolean;
   shareState: "idle" | "working" | "copied" | "failed";
@@ -28,6 +31,9 @@ export default function ArcanaCard({
   // Escape 닫기 · 닫기 버튼 포커스 · body 스크롤 잠금을 시트와 같은 훅에서 받는다(§4.6).
   const closeRef = useOverlayShell(onClose);
   const metrics = analysis.metrics;
+  const paths = originalPaths(analysis);
+  // 캔버스와 같은 규칙으로 한 획씩 차례로 빛난다.
+  const pulse = usePulseTurn(analysis.strokes.length, cycle);
 
   return <div className="card-overlay" role="dialog" aria-modal="true" aria-labelledby="arcana-card-title" onClick={onClose}>
     <button className="card-close" ref={closeRef} onClick={onClose} aria-label="닫기">✕</button>
@@ -36,7 +42,14 @@ export default function ArcanaCard({
       <div className="card-face card-front">
         <small>ARCANA CARD</small>
         <h2 id="arcana-card-title">{ability}</h2>
-        <div className="mini-circle">{attributeGlyphs}</div>
+        <div className="mini-circle">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            {paths.map((path) => <path key={path.key} className="card-path" d={path.d} style={{ strokeWidth: STROKE_WIDTH }} />)}
+            {pulse.step > 0 && paths.filter((path) => path.strokeIndex === pulse.index).map((path) =>
+              <path key={`pulse-${path.key}-${pulse.turn}`} className="stroke-pulse" d={path.d} pathLength={100}
+                style={{ animationDuration: `${pulse.step}s` }} />)}
+          </svg>
+        </div>
         <p>{attributeLabel} · {metrics.grade}</p>
         <strong>{metrics.power}</strong>
         <span>MAGIC POWER</span>
