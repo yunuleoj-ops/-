@@ -4,7 +4,7 @@ import { memo, type CSSProperties } from "react";
 
 import { pathFor, STROKE_WIDTH, strokeCopies, type Stroke } from "@/lib/geometry";
 
-export type Pulse = { delay: number; duration: number } | null;
+export type Pulse = { duration: number } | null;
 
 // 획 하나와 그 대칭 복사본. 그리는 중에 새 객체가 되는 것은 활성 획뿐이라 확정된 획들은 다시 그리지 않는다.
 const StrokeLayer = memo(function StrokeLayer({ stroke, pulse }: { stroke: Stroke; pulse?: Pulse }) {
@@ -17,7 +17,7 @@ const StrokeLayer = memo(function StrokeLayer({ stroke, pulse }: { stroke: Strok
       <path className="draw-stroke" d={d} style={{ stroke: "url(#arcana-gradient)", strokeWidth: STROKE_WIDTH }} />
       {/* pathLength=100 으로 정규화하면 획 길이와 무관하게 같은 비율의 빛 조각이 같은 속도로 지난다. */}
       {pulse && <path className="stroke-pulse" d={d} pathLength={100}
-        style={{ animationDelay: `${pulse.delay}s`, animationDuration: `${pulse.duration}s` } as CSSProperties} />}
+        style={{ animationDuration: `${pulse.duration}s` } as CSSProperties} />}
     </g>;
   })}</>;
 });

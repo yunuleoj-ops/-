@@ -25,6 +25,7 @@ export default function Home() {
   const [rotationCount, setRotationCount] = useState(6);
   const [guides, setGuides] = useState(true);
   const [speed, setSpeed] = useState("normal");
+  const [pulseIndex, setPulseIndex] = useState(0);
   // 한 바퀴 도는 데 걸리는 시간. 정지는 0이고, 이때 펄스도 함께 멈춘다.
   const cycle = speed === "slow" ? 18 : speed === "fast" ? 4 : speed === "stop" ? 0 : 9;
   const [cardOpen, setCardOpen] = useState(false);
@@ -71,9 +72,9 @@ export default function Home() {
   });
   const displayStrokes = active ? [...strokes, active] : strokes;
   // 펄스는 확정된 획에만 붙는다. 그리는 중인 획은 아직 끝점이 없어 "시작에서 끝까지"가 성립하지 않는다.
-  const pulseStep = cycle && strokes.length ? cycle / strokes.length : 0;
-  const pulseOf = (index: number) =>
-    pulseStep ? { delay: index * pulseStep, duration: Math.max(0.8, pulseStep) } : null;
+  // 한 번에 한 획만 빛난다 — CSS animation-delay 는 첫 반복에만 걸려서, infinite 로 돌리면
+  // 두 번째 사이클부터 각 획이 제 주기로 겹쳐 버린다. 차례는 여기서 넘긴다.
+  const pulseStep = cycle && strokes.length ? Math.max(0.8, cycle / strokes.length) : 0;
 
   // 냉시작 배치 적합만 유휴 시간으로 미룬다. requestIdleCallback 이 없는 브라우저는 setTimeout 으로 떨어진다.
   useEffect(() => {
@@ -93,6 +94,13 @@ export default function Home() {
     if (!restored.current) { restored.current = true; return; }
     saveDraft(strokes);
   }, [strokes]);
+  useEffect(() => {
+    if (!pulseStep) return;
+    setPulseIndex(0);
+    const timer = setInterval(() => setPulseIndex((current) => current + 1), pulseStep * 1000);
+    return () => clearInterval(timer);
+  }, [pulseStep, strokes.length]);
+
   useEffect(() => () => {
     if (idleTimer.current) clearTimeout(idleTimer.current);
     if (shareTimer.current) clearTimeout(shareTimer.current);
@@ -210,7 +218,8 @@ export default function Home() {
           <svg className="magic-canvas" viewBox="0 0 100 100" onPointerDown={startStroke} onPointerMove={addPoint} onPointerUp={endStroke} onPointerCancel={endStroke} aria-label="마법진 그리기 캔버스">
             <defs><linearGradient id="arcana-gradient" x1="0" y1="0" x2="1" y2="1">{selectedColors.map((tone, index) => <stop key={`${tone}-${index}`} offset={`${selectedColors.length === 1 ? 0 : (index / (selectedColors.length - 1)) * 100}%`} stopColor={tone} />)}</linearGradient><filter id="magic-glow"><feGaussianBlur stdDeviation="0.65" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
             {guides && <g className="guides"><circle cx="50" cy="50" r="44" /><circle cx="50" cy="50" r="31" />{Array.from({ length: 8 }, (_, i) => <line key={i} x1="50" y1="5" x2="50" y2="95" transform={`rotate(${i * 45} 50 50)`} />)}<path d="M50 15L58 41L85 41L63 57L71 85L50 68L29 85L37 57L15 41L42 41Z" /></g>}
-            {displayStrokes.map((stroke, index) => <StrokeLayer key={stroke.id} stroke={stroke} pulse={index < strokes.length ? pulseOf(index) : null} />)}
+            {displayStrokes.map((stroke, index) => <StrokeLayer key={stroke.id} stroke={stroke}
+              pulse={pulseStep && index === pulseIndex % strokes.length ? { duration: pulseStep } : null} />)}
             <circle className="core" cx="50" cy="50" r="1.5" />
           </svg>
           <p className="canvas-tip">드래그하여 그리세요 · 대칭 모드에서는 선이 자동 복사됩니다</p>
