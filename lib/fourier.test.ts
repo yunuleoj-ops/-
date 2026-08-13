@@ -265,8 +265,14 @@ describe("닫힌 획 적합", () => {
     expect(asPoint.length).toBeCloseTo(185.5481, 3);   // closure="point"는 열린 폴리라인 길이다
   });
 
-  it("열린 획은 아직 이 모듈이 처리하지 않는다", () => {
-    expect(() => fitStroke([{ x: 20, y: 50 }, { x: 80, y: 50 }], "open")).toThrow(/open/);
+  it("열린 획은 열림 분기로 넘어가고 표본을 P+1개 쓴다", () => {
+    const spectrum = fitStroke([{ x: 20, y: 50 }, { x: 80, y: 50 }], "open");
+    if (spectrum.kind !== "open") throw new Error(`열린 스펙트럼이 아니다: ${spectrum.kind}`);
+    expect(spectrum.terms).toEqual([]);                      // 직선은 0항
+    expect(spectrum.stats.arcLength).toBeCloseTo(60, 9);
+    // resampleUniform 의 4번째 인자를 closed 로 넘기지 않으면(=true 고정) 표본이 P개로 와서
+    // fitOpen 이 P = 127 로 계산한다. 이 128 단언이 그 실수만 잡는다.
+    expect(spectrum.stats.P).toBe(128);
   });
 });
 

@@ -225,10 +225,9 @@ export function fitStroke(points: Point[], closure: Closure, options?: FitOption
   // !(length > …) 는 부정형이 아니라 NaN 처리다. length > … 로 쓰면 NaN 이 아래로 새어 나간다.
   if (closure === "point" || !(length > MIN_ARC_LENGTH)) return { kind: "point", length };
   const P = sampleCount(length);
+  // 닫힘은 P개(끝점 중복 없음), 열림은 P+1개(양 끝 포함). fitOpen 은 samples.length − 1 로 P를 되찾는다.
   const samples = resampleUniform(poly, length, P, closed).map(toComplex);
-  // Task 5가 이 한 줄을 `return closed ? fitClosed(...) : fitOpen(samples, length, options);` 로 바꾼다.
-  if (!closed) throw new Error("fitStroke: open stroke fitting lands in Task 5");
-  return fitClosed(samples, length, options);
+  return closed ? fitClosed(samples, length, options) : fitOpen(samples, length, options);
 }
 
 // 임의 t 에서의 z(t) = c₀ + Σ c_n e^(2πint). 표본 격자를 벗어나므로 표 조회가 아니라 직접 계산한다.
@@ -281,4 +280,70 @@ export function overlayPointCount(spectrum: Spectrum): number {
   let top = 1;
   for (const term of spectrum.terms) top = Math.max(top, Math.abs(term.n));
   return Math.max(64, Math.min(512, 8 * top));
+}
+
+// 열린 획: 현 분리 후 DST-I. z(t) = z₀ + Δ·t + Σ b_n sin(πnt).
+// 항 선택·정지조건·정확도·maxError 보정은 손대지 않는다 — selectAndFinalize 하나가 닫힘과 열림을 모두 끝낸다.
+function fitOpen(samples: Complex[], arcLength: number, options?: FitOptions): Spectrum {
+  const P = samples.length - 1;
+  const K = bandLimit(P);
+  const z0 = samples[0];
+  const delta = { re: samples[P].re - z0.re, im: samples[P].im - z0.im };
+
+  // r_k = z_k − z₀ − (k/P)Δ. 정의상 r_0 = r_P = 0 이므로 합에서 뺀다(Float64Array 는 0으로 초기화된다).
+  const rRe = new Float64Array(P + 1);
+  const rIm = new Float64Array(P + 1);
+  for (let k = 1; k < P; k += 1) {
+    const f = k / P;
+    rRe[k] = samples[k].re - z0.re - f * delta.re;
+    rIm[k] = samples[k].im - z0.im - f * delta.im;
+  }
+
+  // sin(πm/P) 는 m 에 대해 주기 2P. n·k ≤ 64 × 512 = 32768 이라 정수 나머지가 안전하다.
+  const span = 2 * P;
+  const sinTable = new Float64Array(span);
+  for (let j = 0; j < span; j += 1) sinTable[j] = Math.sin((Math.PI * j) / P);
+
+  // 표본 P+1 개 기준 평균제곱오차 환산 계수. Σ_{k=1}^{P−1}|res_k|² = (P/2)Σ_{n∉A}|b_n|² 이므로.
+  // 닫힘의 energy 는 |c_n|²(환산 계수 1)이고 열림은 이 scale 이 붙는다. 두 kind 의 energy 가
+  // 같은 단위(표본 MSE)여야 selectAndFinalize 의 정지 문턱이 한 벌로 성립한다.
+  const scale = P / (2 * (P + 1));
+
+  const candidates: Candidate[] = [];
+  for (let n = 1; n <= K; n += 1) {
+    let re = 0;
+    let im = 0;
+    for (let k = 1; k < P; k += 1) {
+      const s = sinTable[(n * k) % span];
+      re += rRe[k] * s;
+      im += rIm[k] * s;
+    }
+    re *= 2 / P;
+    im *= 2 / P;
+    candidates.push({ n, re, im, energy: scale * (re * re + im * im) });
+  }
+
+  // 파스발: Σ_{n=1}^{P−1}|b_n|² = (2/P)Σ_{k=1}^{P−1}|r_k|². 후보 대역(K) 밖 에너지까지 정확히 포함된다.
+  let power = 0;
+  for (let k = 1; k < P; k += 1) power += rRe[k] * rRe[k] + rIm[k] * rIm[k];
+  const tailEnergy = scale * (2 / P) * power;
+
+  const rebuild = (terms: Term[]): Complex[] => {
+    const out: Complex[] = [];
+    for (let k = 0; k <= P; k += 1) {
+      const f = k / P;
+      let re = z0.re + f * delta.re;
+      let im = z0.im + f * delta.im;
+      for (const term of terms) {
+        const s = sinTable[(term.n * k) % span];
+        re += term.re * s;
+        im += term.im * s;
+      }
+      out.push({ re, im });
+    }
+    return out;
+  };
+
+  const { terms, stats } = selectAndFinalize(samples, candidates, tailEnergy, normOf(samples), arcLength, P, rebuild, options);
+  return { kind: "open", z0, delta, terms, stats };
 }
