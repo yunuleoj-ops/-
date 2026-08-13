@@ -17,8 +17,7 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
   // 시트는 열릴 때만 마운트되므로 초기값이 곧 "자동 결정된 항 수"다. 동기화 effect가 필요 없다.
   const [cap, setCap] = useState(Math.max(1, maxTerms));
   const [focus, setFocus] = useState<number | null>(null);
-  const [format, setFormat] = useState<"plain" | "latex">("plain");
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [copied, setCopied] = useState<{ format: "plain" | "latex"; ok: boolean } | null>(null);
   const closeRef = useOverlayShell(onClose);
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,14 +37,16 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
     itemRefs.current[index]?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
 
-  const copy = async () => {
+  const copy = async (format: "plain" | "latex") => {
     const text = format === "latex" ? formatLatex(analysis) : sheetPlainText(analysis);
     // 모달은 복사의 의도된 목적지다. 조용히 return 하지 않는다(§4.7).
-    try { await navigator.clipboard.writeText(text); setCopyState("copied"); }
-    catch { setCopyState("failed"); }
+    try { await navigator.clipboard.writeText(text); setCopied({ format, ok: true }); }
+    catch { setCopied({ format, ok: false }); }
     if (copyTimer.current) clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopyState("idle"), 1800);
+    copyTimer.current = setTimeout(() => setCopied(null), 1800);
   };
+  const copyLabel = (format: "plain" | "latex", idle: string) =>
+    copied?.format !== format ? idle : copied.ok ? "복사됨" : "복사 실패";
 
   // sheet-close는 .formula-sheet(스크롤되는 컨테이너) 밖, .card-overlay(고정) 안에 둔다 — ArcanaCard의
   // .card-close와 같은 패턴이다(#14). 스크롤 컨테이너 안에 absolute로 두면 시트를 내릴 때 버튼이 같이
@@ -130,11 +131,8 @@ export default function FormulaSheet({ analysis, onClose }: { analysis: CircleAn
       {analysis.silhouette && <p className="sheet-silhouette"><span>외곽 실루엣 (참고)</span><code>{analysis.silhouette}</code></p>}
 
       <footer className="sheet-actions">
-        <div className="sheet-format" role="group" aria-label="복사 형식">
-          <button className={format === "plain" ? "on" : undefined} onClick={() => setFormat("plain")}>평문</button>
-          <button className={format === "latex" ? "on" : undefined} onClick={() => setFormat("latex")}>LaTeX</button>
-        </div>
-        <button className="sheet-copy" onClick={copy}>{copyState === "copied" ? "복사됨" : copyState === "failed" ? "복사 실패" : "식 복사"}</button>
+        <button className="sheet-copy" onClick={() => copy("plain")}>{copyLabel("plain", "평문으로 복사")}</button>
+        <button className="sheet-copy" onClick={() => copy("latex")}>{copyLabel("latex", "LaTeX로 복사")}</button>
       </footer>
     </section>
   </div>;

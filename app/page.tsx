@@ -157,10 +157,13 @@ export default function Home() {
     <section className="workspace">
       <section className="stage panel">
         <div className="scan-bar">
-          <div className="scan-group attributes">{ATTRIBUTE_ORDER.map((id) => {
+          <div className="scan-group attributes">
+            <div className="attribute-row">{ATTRIBUTE_ORDER.map((id) => {
             const blocker = blockerOf(id);
             return <button key={id} onClick={() => toggleAttribute(id)} disabled={!!blocker} title={blocker ? `${ATTRIBUTES[blocker].label}과(와) 상극이라 함께 고를 수 없습니다` : ATTRIBUTES[id].description} className={attributes.includes(id) ? "on" : ""} style={{ "--element": ATTRIBUTES[id].accent } as CSSProperties}><span>{ATTRIBUTES[id].glyph}</span>{ATTRIBUTES[id].label}</button>;
-          })}</div>
+            })}</div>
+            <b className="attribute-ability" title={`${attributeLabel} · ${description}`}>{ability}</b>
+          </div>
           <div className="scan-group power" title={`MAGIC POWER ${metrics.power} / 999`}>
             <b>{metrics.power}</b>
             <div className="power-bar"><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div>
@@ -175,7 +178,6 @@ export default function Home() {
             <div><dt>좌우</dt><dd>{metrics.horizontal}%</dd></div>
             <div><dt>상하</dt><dd>{metrics.vertical}%</dd></div>
           </dl>
-          <div className="scan-group ability" title={`${attributeLabel} · ${description}`}><b>{ability}</b></div>
           <button className="finish" disabled={!strokes.length} onClick={openCard}>마법진 완성 <span>→</span></button>
         </div>
         <div className="toolbar">
