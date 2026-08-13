@@ -175,20 +175,24 @@ export default function Home() {
             })}</div>
             <div className="ability-card" title={description}><span className="ability-glyphs" aria-hidden="true">{attributeGlyphs}</span><span className="ability-text"><i>{attributeLabel}</i><b>{title}</b></span></div>
           </div>
-          <div className="scan-group power" title={`MAGIC POWER ${metrics.power} / 999`}>
-            <b>{metrics.power}</b>
-            <div className="power-bar"><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div>
-            <strong>{metrics.grade}</strong>
+          {/* 수치는 점수에 딸린 설명이라 같은 칸에 위아래로 둔다. 옆으로 늘어놓으면 좁은 화면에서
+              줄바꿈이 어디서 일어날지 모르고, 그때 수치가 점수와 떨어져 남의 칸처럼 보인다. */}
+          <div className="scan-group score">
+            <div className="power" title={`MAGIC POWER ${metrics.power} / 999`}>
+              <b>{metrics.power}</b>
+              <div className="power-bar"><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div>
+              <strong>{metrics.grade}</strong>
+            </div>
+            <dl className="stats">
+              <div className="stat-terms"><dt>항</dt><dd>{analysis.totalTerms}</dd></div>
+              <div><dt>선</dt><dd>{metrics.lines}</dd></div>
+              <div><dt>길이</dt><dd>{metrics.length}</dd></div>
+              <div><dt>교차</dt><dd>{metrics.intersections}</dd></div>
+              <div><dt>닫힘</dt><dd>{metrics.closed}</dd></div>
+              <div><dt>좌우</dt><dd>{metrics.horizontal}%</dd></div>
+              <div><dt>상하</dt><dd>{metrics.vertical}%</dd></div>
+            </dl>
           </div>
-          <dl className="scan-group stats">
-            <div className="stat-terms"><dt>항</dt><dd>{analysis.totalTerms}</dd></div>
-            <div><dt>선</dt><dd>{metrics.lines}</dd></div>
-            <div><dt>길이</dt><dd>{metrics.length}</dd></div>
-            <div><dt>교차</dt><dd>{metrics.intersections}</dd></div>
-            <div><dt>닫힘</dt><dd>{metrics.closed}</dd></div>
-            <div><dt>좌우</dt><dd>{metrics.horizontal}%</dd></div>
-            <div><dt>상하</dt><dd>{metrics.vertical}%</dd></div>
-          </dl>
           <button className="finish" disabled={!strokes.length} onClick={openCard}>마법진 완성 <span>→</span></button>
         </div>
         <div className="toolbar">
