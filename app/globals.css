@@ -44,8 +44,9 @@
 .sheet-head small{font:10px 'DM Mono';letter-spacing:.14em;color:#cbb37a}
 .sheet-head h2{margin:6px 0 14px;font:600 25px 'Playfair Display'}
 .sheet-headline{margin:0;font-size:13px;color:#b7c1b5}
-.sheet-headline b{margin-right:5px;font:700 34px/1 'Playfair Display';color:#f2e8d2}
-.sheet-badge{display:inline-block;margin-left:12px;padding:4px 10px;border:1px solid #4a5a52;background:#20302c;color:var(--accent);font:11px 'DM Mono';letter-spacing:.06em}
+/* 한 줄 안에서 34px·13px·11px 세 크기가 부딪혔다. 크기는 하나로 두고 무게와 색으로만 구분한다. */
+.sheet-headline b{margin-right:3px;font:600 13px 'Playfair Display';color:#f2e8d2}
+.sheet-badge{display:inline-block;margin-left:12px;padding:3px 9px;border:1px solid #4a5a52;background:#20302c;color:var(--accent);font:13px 'DM Mono';letter-spacing:.06em}
 .sheet-badge.miss{opacity:.45}
 .sheet-worst{margin-top:9px;padding:0 0 2px;border:0;border-bottom:1px dotted #7d8b80;background:transparent;color:#9aa79c;font:10px 'DM Mono';letter-spacing:.06em;cursor:pointer}
 .sheet-overlay{margin:16px 0 0;text-align:center}
