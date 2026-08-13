@@ -1,7 +1,6 @@
 // 마법진의 위력 지표. 공유 링크로 받은 마법진도 같은 값을 내도록 순수 함수로 둔다.
 
 import { copiesFor, curvePoints, pointDistance, type Stroke } from "@/lib/geometry";
-import { polarFormula } from "@/lib/polar";
 
 export type Metrics = ReturnType<typeof getMetrics>;
 
@@ -33,6 +32,5 @@ export function getMetrics(strokes: Stroke[]) {
   const complexity = Math.min(100, Math.round(lines * 7 + intersections * 2 + closed * 10 + corners * 1.5 + length / 42));
   const power = Math.round(copies + intersections * 3 + closed * 4 + (mirroredX ? 10 : 0) + (mirroredY ? 10 : 0) + (rotation - 1) * 10 + complexity * 2);
   const grade = power >= 260 ? "초월" : power >= 150 ? "고급" : power >= 60 ? "중급" : "초급";
-  const { formula, accuracy } = polarFormula(strokes);
-  return { lines, length: Math.round(length), intersections, closed, horizontal, vertical, rotation, complexity, power, grade, formula, accuracy };
+  return { lines, length: Math.round(length), intersections, closed, horizontal, vertical, rotation, complexity, power, grade };
 }
