@@ -5,6 +5,7 @@
 
 import { ATTRIBUTE_ORDER, sanitizeAttributes, type Attribute } from "@/lib/attributes";
 import { newId, type Point, type Stroke, type Symmetry } from "@/lib/geometry";
+import { classifyClosure } from "@/lib/resample";
 
 const FORMAT = 1;
 const SYMMETRY_CODES: Symmetry[] = ["free", "mirrorX", "mirrorY", "rotate"];
@@ -80,8 +81,12 @@ export async function decodeShare(text: string | undefined | null): Promise<Shar
       }
       if (points.length < 2) continue;
       // id는 링크에 싣지 않는다(획당 32바이트). 읽는 쪽에서 만들어 붙인다.
-      // Task 3이 closure를 classifyClosure(points)로 교체한다.
-      strokes.push({ id: newId(), points, symmetry, rotationCount: Math.min(12, Math.max(1, Math.round(rotationCount))), closure: "open" });
+      strokes.push({
+        id: newId(), points, symmetry,
+        rotationCount: Math.min(12, Math.max(1, Math.round(rotationCount))),
+        // 링크에는 closure 를 싣지 않는다. 좌표에서 다시 판정해야 보낸 사람과 받은 사람의 식이 같아진다.
+        closure: classifyClosure(points)
+      });
     }
     if (!strokes.length) return null;
 
