@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Point, Stroke, Symmetry } from "@/lib/geometry";
-import { MAX_STROKES } from "@/lib/history";
+import { MAX_LENGTH, MAX_STROKES } from "@/lib/history";
 import { getMetrics, MAX_POWER } from "@/lib/metrics";
 
 const stroke = (points: Point[], symmetry: Symmetry = "free", rotationCount = 6): Stroke =>
@@ -61,6 +61,15 @@ describe("getMetrics", () => {
     const metrics = getMetrics(strokes);
     expect(metrics.power).toBeGreaterThan(700);
     expect(metrics.power).toBeLessThan(MAX_POWER - 100);
+  });
+
+  it(`길이 점수는 잉크 예산 ${MAX_LENGTH}에서 만점이고 더 그려도 오르지 않는다`, () => {
+    const long = Array.from({ length: 6 }, () => stroke(CIRCLE, "rotate", 8));   // 길이 1000 남짓
+    const longer = Array.from({ length: 10 }, () => stroke(CIRCLE, "rotate", 8)); // 길이 1800 남짓
+    expect(getMetrics(long).length).toBeGreaterThan(MAX_LENGTH);
+    // 길이 지표가 이미 만점이라 남은 차이는 획 수에서만 온다.
+    const gap = getMetrics(longer).power - getMetrics(long).power;
+    expect(gap).toBeLessThanOrEqual(120 * (4 / MAX_STROKES) + 1);
   });
 
   it("회전 수를 올리면 점수가 오른다", () => {

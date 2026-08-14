@@ -4,11 +4,20 @@
 //     그 증상이 화면에서는 "Encountered two children with the same key" 로 나타난다.
 import { describe, expect, it } from "vitest";
 
-import { EMPTY_HISTORY, historyReducer, MAX_HISTORY, MAX_STROKES, type History, type HistoryAction } from "@/lib/history";
+import { EMPTY_HISTORY, historyReducer, MAX_HISTORY, MAX_LENGTH, MAX_STROKES, usedLength, type History, type HistoryAction } from "@/lib/history";
 import type { Point, Stroke } from "@/lib/geometry";
 
 const strokeAt = (id: string, x: number, y: number): Stroke =>
   ({ id, points: [{ x, y }, { x: x + 5, y: y + 5 }], symmetry: "free", rotationCount: 6, closure: "open" });
+
+// 길이 예산을 시험할 획들. 가로지르는 직선 하나가 90, 지그재그 한 줄이 800 남짓이다.
+const line = (id: string, y: number): Stroke =>
+  ({ id, points: [{ x: 5, y }, { x: 50, y }, { x: 95, y }], symmetry: "free", rotationCount: 6, closure: "open" });
+const hugeStroke = (id: string): Stroke => ({
+  id,
+  points: Array.from({ length: 10 }, (_, index) => ({ x: index % 2 ? 5 : 95, y: index * 10 })),
+  symmetry: "free", rotationCount: 6, closure: "open"
+});
 
 const run = (start: History, actions: HistoryAction[]) => actions.reduce(historyReducer, start);
 const idsOf = (state: History) => state.present.map((stroke) => stroke.id);
@@ -114,6 +123,33 @@ describe("historyReducer", () => {
     expect(full.present).toHaveLength(MAX_STROKES);
     // 제한에 걸린 커밋은 기록도 남기지 않는다 — 되돌리기가 아무 일도 없는 칸을 밟으면 안 된다.
     expect(full.past).toHaveLength(MAX_STROKES);
+  });
+
+  it(`선 길이 합이 ${MAX_LENGTH}에 닿으면 새 획이 들어가지 않는다`, () => {
+    let state = EMPTY_HISTORY;
+    for (let index = 0; index < MAX_STROKES; index += 1) {
+      state = historyReducer(state, { type: "commit", stroke: line("L" + index, index * 7) });
+    }
+    expect(usedLength(state.present)).toBeGreaterThanOrEqual(MAX_LENGTH);
+    // 획 수는 아직 남아 있는데도 길이 때문에 멈춘다.
+    expect(state.present.length).toBeLessThan(MAX_STROKES);
+    expect(historyReducer(state, { type: "commit", stroke: line("x", 99) })).toBe(state);
+  });
+
+  it("예산을 넘긴 마지막 획은 지우지 않는다", () => {
+    // 이미 그은 획을 길다고 없애면 그건 제한이 아니라 데이터 손실이다.
+    const state = historyReducer(EMPTY_HISTORY, { type: "commit", stroke: hugeStroke("big") });
+    expect(usedLength(state.present)).toBeGreaterThan(MAX_LENGTH);
+    expect(state.present).toHaveLength(1);
+    // 다만 그 다음 획부터는 들어가지 않는다.
+    expect(historyReducer(state, { type: "commit", stroke: line("x", 99) })).toBe(state);
+  });
+
+  it("되돌리기로 길이를 되찾으면 다시 그릴 수 있다", () => {
+    const full = historyReducer(EMPTY_HISTORY, { type: "commit", stroke: hugeStroke("big") });
+    const back = historyReducer(full, { type: "undo" });
+    expect(usedLength(back.present)).toBe(0);
+    expect(historyReducer(back, { type: "commit", stroke: line("x", 50) }).present.map((s) => s.id)).toEqual(["x"]);
   });
 
   it("제한을 넘긴 그림에서도 다시 실행은 막지 않는다", () => {

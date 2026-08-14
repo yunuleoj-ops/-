@@ -4,8 +4,8 @@
 // 마지막 1점까지 완벽해야 만점이 되는 것보다 "충분히 훌륭하면 만점"이 게임으로서 낫기 때문이다.
 // 한 지표만 몰아서는 만점이 나오지 않는다 — 매끈한 원만 그리면 꺾임 120이 통째로 빠진다.
 
-import { copiesFor, curvePoints, pointDistance, type Stroke } from "@/lib/geometry";
-import { MAX_STROKES } from "@/lib/history";
+import { copiesFor, curvePoints, pointDistance, polylineLength, type Stroke } from "@/lib/geometry";
+import { MAX_LENGTH, MAX_STROKES } from "@/lib/history";
 
 export type Metrics = ReturnType<typeof getMetrics>;
 
@@ -17,7 +17,7 @@ const SCORE = {
   mirror: { max: 130, full: 2 },        // 좌우·상하 각 65
   intersections: { max: 150, full: 28 },
   corners: { max: 120, full: 36 },
-  length: { max: 150, full: 1100 }
+  length: { max: 150, full: MAX_LENGTH }   // 잉크 예산을 다 쓰면 만점
 } as const;
 
 export const MAX_POWER = 999;
@@ -30,8 +30,7 @@ export function getMetrics(strokes: Stroke[]) {
   let length = 0; let corners = 0; let closed = 0; let copies = 0;
   strokes.forEach((stroke) => {
     const shaped = curvePoints(stroke.points);
-    let drawn = 0;
-    for (let index = 1; index < shaped.length; index += 1) drawn += pointDistance(shaped[index - 1], shaped[index]);
+    const drawn = polylineLength(shaped);
     length += drawn;
     if (drawn > 18 && pointDistance(shaped[0], shaped[shaped.length - 1]) < 8) closed += 1;
     // 제어점에서 진행 방향이 45도 넘게 꺾이면 꼭짓점으로 센다.

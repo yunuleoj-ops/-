@@ -84,6 +84,16 @@ export const curvePoints = (points: Point[]): Point[] => {
   return sampled;
 };
 
+// 점들을 이은 길이. 잉크 예산과 점수가 같은 자를 써야 화면의 숫자와 규칙이 어긋나지 않는다.
+export const polylineLength = (points: Point[]): number => {
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) total += pointDistance(points[index - 1], points[index]);
+  return total;
+};
+
+// 획 하나가 실제로 그은 길이 — 제어점이 아니라 화면에 그려진 곡선 위에서 잰다.
+export const strokeLength = (points: Point[]): number => polylineLength(curvePoints(points));
+
 export const transformPoint = (point: Point, symmetry: Symmetry, count: number, copy: number): Point => {
   if (symmetry === "mirrorX") return copy ? { x: 100 - point.x, y: point.y } : point;
   if (symmetry === "mirrorY") return copy ? { x: point.x, y: 100 - point.y } : point;

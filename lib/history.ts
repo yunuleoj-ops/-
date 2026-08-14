@@ -9,10 +9,16 @@
 // 두 증상 모두 "같은 id 를 가진 획이 둘"로 나타나고 렌더가 중복 key 로 깨진다.
 // 리듀서는 순수하므로 두 번 실행해도 같은 결과를 내고, 연달아 보낸 액션도 순서대로 적용된다.
 
-import { pointDistance, type Point, type Stroke } from "@/lib/geometry";
+import { pointDistance, strokeLength, type Point, type Stroke } from "@/lib/geometry";
 
 // 한 마법진에 담을 수 있는 획의 수. 리듀서가 지키므로 화면 어디에서 그리든 규칙은 하나다.
 export const MAX_STROKES = 13;
+// 그리고 그 획들이 쓸 수 있는 총 길이 — 잉크 예산이다.
+export const MAX_LENGTH = 777;
+
+// 지금까지 쓴 길이. 획은 13개까지라 커밋마다 다시 재도 값싸다.
+export const usedLength = (strokes: Stroke[]): number =>
+  strokes.reduce((sum, stroke) => sum + strokeLength(stroke.points), 0);
 // 되돌리기 깊이. 획 객체는 만들어진 뒤 변하지 않아 스냅샷은 참조 배열이지만, 무한히 쌓을 이유도 없다.
 export const MAX_HISTORY = 50;
 
@@ -42,8 +48,11 @@ export function historyReducer(state: History, action: HistoryAction): History {
       // 불러오기 이전으로 되돌아갈 자리는 없다. 기록을 새로 시작한다.
       return action.strokes.length ? { past: [], present: action.strokes, future: [] } : state;
     case "commit":
-      // 제한을 넘으면 조용히 무시한다. 화면은 "13/13"으로 이미 이유를 말하고 있다.
-      return state.present.length >= MAX_STROKES ? state : step(state, [...state.present, action.stroke]);
+      // 제한을 넘으면 조용히 무시한다. 화면은 "13/13"과 "777/777"로 이미 이유를 말하고 있다.
+      // 예산은 "그리기 시작할 수 있는가"만 본다. 이미 그은 획을 길다고 없애면 그건 제한이 아니라 데이터 손실이다.
+      return state.present.length >= MAX_STROKES || usedLength(state.present) >= MAX_LENGTH
+        ? state
+        : step(state, [...state.present, action.stroke]);
     case "eraseAt": {
       const next = state.present.filter((stroke) =>
         !stroke.points.some((point) => pointDistance(point, action.point) < action.radius));

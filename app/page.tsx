@@ -6,8 +6,8 @@ import { analyzeFitted, fitAll, type CircleAnalysis } from "@/lib/analysis";
 import { ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } from "@/lib/attributes";
 import { cardNameOf } from "@/lib/naming";
 import { formatAccuracy, formatSummarySentence, structureTex } from "@/lib/formatting";
-import { newId, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
-import { EMPTY_HISTORY, historyReducer, MAX_STROKES } from "@/lib/history";
+import { newId, polylineLength, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
+import { EMPTY_HISTORY, historyReducer, MAX_LENGTH, MAX_STROKES } from "@/lib/history";
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
 import { hasFormula as canShowFormula } from "@/lib/sheet";
@@ -75,6 +75,10 @@ export default function Home() {
   });
   // 획 예산을 다 썼는가. 예전 그림은 13획을 넘긴 채로 들어올 수 있어 등호가 아니라 부등호다.
   const full = strokes.length >= MAX_STROKES;
+  // 잉크 예산. 확정된 길이는 metrics 가 이미 재 두었고, 그리는 중인 획만 여기서 더한다 —
+  // 곡선으로 다시 재지 않고 제어점을 이은 길이를 쓴다. 매 점마다 곡선을 다시 뽑으면 획 하나가 O(n²)이 된다.
+  const inkUsed = metrics.length + (active ? polylineLength(active.points) : 0);
+  const outOfInk = inkUsed >= MAX_LENGTH;
   const displayStrokes = active ? [...strokes, active] : strokes;
   const pulse = usePulseTurn(strokes.length);
   // 펄스는 확정된 획에만 붙는다. 그리는 중인 획은 아직 끝점이 없어 "시작에서 끝까지"가 성립하지 않는다.
@@ -119,12 +123,14 @@ export default function Home() {
     }
     // 다 쓴 뒤에는 아예 시작하지 않는다. 그리게 두면 손을 뗄 때 리듀서가 버리므로 획이 사라지는 것처럼 보인다.
     // 지우개는 위에서 이미 처리했다 — 꽉 찼을 때야말로 지우개가 필요하다.
-    if (full) return;
+    if (full || outOfInk) return;
     // id는 이벤트 핸들러 안에서만 만든다. 렌더 중에 만들면 서버와 클라이언트가 다른 값을 내 hydration이 깨진다.
     setActive({ id: newId(), points: [eventPoint(event)], symmetry, rotationCount, closure: "open" });
   };
   const addPoint = (event: PointerEvent<SVGSVGElement>) => {
     if (!active || tool === "eraser") return;
+    // 잉크가 떨어지면 획이 그 자리에서 멈춘다. 손을 뗄 때 통째로 버리는 것보다 이쪽이 눈에 보인다.
+    if (outOfInk) return;
     const point = eventPoint(event);
     setActive((current) => current ? { ...current, points: [...current.points, point] } : null);
   };
@@ -214,6 +220,10 @@ export default function Home() {
           <span className={full ? "stroke-count full" : "stroke-count"}
             title={full ? "획을 다 썼습니다. 되돌리거나 지우고 다시 그리세요" : `한 마법진에 획 ${MAX_STROKES}개까지`}>
             획 {strokes.length}/{MAX_STROKES}
+          </span>
+          <span className={outOfInk ? "stroke-count full" : "stroke-count"}
+            title={outOfInk ? "선을 다 썼습니다. 지우거나 되돌리면 다시 그릴 수 있습니다" : `모든 획의 길이 합은 ${MAX_LENGTH}까지`}>
+            길이 {Math.round(inkUsed)}/{MAX_LENGTH}
           </span>
           <div className="tool-group">
             {([ ["free", "자유"], ["mirrorX", "좌우"], ["mirrorY", "상하"], ["rotate", "회전"] ] as [Symmetry, string][]).map(([id, label]) => <button key={id} onClick={() => setSymmetry(id)} className={symmetry === id ? "on" : ""}>{label}</button>)}
