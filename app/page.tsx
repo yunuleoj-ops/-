@@ -217,14 +217,17 @@ export default function Home() {
             <button className="icon" onClick={redo} disabled={!future.length} aria-label="다시 실행" title="다시 실행">↷</button>
             <button onClick={() => { dispatch({ type: "clear" }); setSaved(false); }} disabled={!strokes.length}>전체 지우기</button>
           </div>
-          <span className={full ? "stroke-count full" : "stroke-count"}
-            title={full ? "획을 다 썼습니다. 되돌리거나 지우고 다시 그리세요" : `한 마법진에 획 ${MAX_STROKES}개까지`}>
-            획 {strokes.length}/{MAX_STROKES}
-          </span>
-          <span className={outOfInk ? "stroke-count full" : "stroke-count"}
-            title={outOfInk ? "선을 다 썼습니다. 지우거나 되돌리면 다시 그릴 수 있습니다" : `모든 획의 길이 합은 ${MAX_LENGTH}까지`}>
-            길이 {Math.round(inkUsed)}/{MAX_LENGTH}
-          </span>
+          {/* 두 예산은 한 쌍으로 읽힌다. 따로 두면 flex 의 auto 여백이 둘 사이를 갈라 놓는다. */}
+          <div className="budget">
+            <span className={full ? "stroke-count full" : "stroke-count"}
+              title={full ? "획을 다 썼습니다. 되돌리거나 지우고 다시 그리세요" : `한 마법진에 획 ${MAX_STROKES}개까지`}>
+              획 {strokes.length}/{MAX_STROKES}
+            </span>
+            <span className={outOfInk ? "stroke-count full" : "stroke-count"}
+              title={outOfInk ? "선을 다 썼습니다. 지우거나 되돌리면 다시 그릴 수 있습니다" : `모든 획의 길이 합은 ${MAX_LENGTH}까지`}>
+              길이 {Math.round(inkUsed)}/{MAX_LENGTH}
+            </span>
+          </div>
           <div className="tool-group">
             {([ ["free", "자유"], ["mirrorX", "좌우"], ["mirrorY", "상하"], ["rotate", "회전"] ] as [Symmetry, string][]).map(([id, label]) => <button key={id} onClick={() => setSymmetry(id)} className={symmetry === id ? "on" : ""}>{label}</button>)}
             <select aria-label="회전 복사 수" value={rotationCount} disabled={symmetry !== "rotate"} onChange={(event) => setRotationCount(Number(event.target.value))}>{[2, 3, 4, 6, 8].map((count) => <option key={count}>{count}</option>)}</select>

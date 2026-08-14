@@ -27,7 +27,7 @@
 .card-stage .share-circle{grid-row:3;align-self:start}
 .sheet-head{text-align:center}
 /* 남은 획. 다 쓰면 색이 바뀌어 '왜 안 그려지지'를 화면이 먼저 말한다. */
-.stroke-count{margin-left:auto;padding:5px 9px;border:1px solid #b9b09f;background:#e9e3d7;color:#55574f;font:11px 'DM Mono';letter-spacing:.04em;white-space:nowrap}
+.budget{margin-left:auto;display:flex;align-items:center;gap:4px}.stroke-count{padding:5px 9px;border:1px solid #b9b09f;background:#e9e3d7;color:#55574f;font:11px 'DM Mono';letter-spacing:.04em;white-space:nowrap;text-align:center;font-variant-numeric:tabular-nums;min-width:96px}
 .stroke-count.full{border-color:var(--accent);background:#283331;color:#f3eee0;box-shadow:inset 0 -2px var(--accent)}
 /* 슬라이더와 범례는 위 그림에 딸린 설명이라 그림과 같은 폭으로 세운다.
    시트 폭을 다 쓰면 그림만 가운데 떠 있는 섬처럼 보인다. */
