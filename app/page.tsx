@@ -7,7 +7,7 @@ import { ATTRIBUTES, ATTRIBUTE_ORDER, gradientFrom, toneOf, type Attribute } fro
 import { cardNameOf } from "@/lib/naming";
 import { formatAccuracy, formatSummarySentence, structureTex } from "@/lib/formatting";
 import { newId, simplify, SIMPLIFY_TOLERANCE, type Stroke, type Symmetry } from "@/lib/geometry";
-import { EMPTY_HISTORY, historyReducer } from "@/lib/history";
+import { EMPTY_HISTORY, historyReducer, MAX_STROKES } from "@/lib/history";
 import { classifyClosure } from "@/lib/resample";
 import { encodeShare } from "@/lib/share";
 import { hasFormula as canShowFormula } from "@/lib/sheet";
@@ -21,7 +21,8 @@ import TeX from "@/app/_components/TeX";
 
 export default function Home() {
   const [history, dispatch] = useReducer(historyReducer, EMPTY_HISTORY);
-  const { strokes, redoStack } = history;
+  // present 를 그대로 strokes 라 부른다 — 이 아래 전부에게 "지금 그림"은 하나뿐이다.
+  const { present: strokes, past, future } = history;
   const [active, setActive] = useState<Stroke | null>(null);
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
   const [attributes, setAttributes] = useState<Attribute[]>(["light", "fire"]);
@@ -72,6 +73,8 @@ export default function Home() {
     const next = current.filter((chosen) => chosen !== id);
     return next.length ? next : current;
   });
+  // 획 예산을 다 썼는가. 예전 그림은 13획을 넘긴 채로 들어올 수 있어 등호가 아니라 부등호다.
+  const full = strokes.length >= MAX_STROKES;
   const displayStrokes = active ? [...strokes, active] : strokes;
   const pulse = usePulseTurn(strokes.length);
   // 펄스는 확정된 획에만 붙는다. 그리는 중인 획은 아직 끝점이 없어 "시작에서 끝까지"가 성립하지 않는다.
@@ -114,6 +117,9 @@ export default function Home() {
       dispatch({ type: "eraseAt", point: target, radius: 5 });
       return;
     }
+    // 다 쓴 뒤에는 아예 시작하지 않는다. 그리게 두면 손을 뗄 때 리듀서가 버리므로 획이 사라지는 것처럼 보인다.
+    // 지우개는 위에서 이미 처리했다 — 꽉 찼을 때야말로 지우개가 필요하다.
+    if (full) return;
     // id는 이벤트 핸들러 안에서만 만든다. 렌더 중에 만들면 서버와 클라이언트가 다른 값을 내 hydration이 깨진다.
     setActive({ id: newId(), points: [eventPoint(event)], symmetry, rotationCount, closure: "open" });
   };
@@ -180,7 +186,7 @@ export default function Home() {
           <div className="scan-group score">
             <div className="power" title={`MAGIC POWER ${metrics.power} / 999`}>
               <b>{metrics.power}</b>
-              <div className="power-bar"><em style={{ width: `${Math.min(100, metrics.power / 3.2)}%` }} /></div>
+              <div className="power-bar"><em style={{ width: `${Math.min(100, metrics.power / 9.99)}%` }} /></div>
               <strong>{metrics.grade}</strong>
             </div>
             <dl className="stats">
@@ -201,10 +207,14 @@ export default function Home() {
             <button className={tool === "eraser" ? "on" : ""} onClick={() => setTool("eraser")}>⌫ 지우개</button>
           </div>
           <div className="tool-group">
-            <button className="icon" onClick={undo} disabled={!strokes.length} aria-label="되돌리기" title="되돌리기">↶</button>
-            <button className="icon" onClick={redo} disabled={!redoStack.length} aria-label="다시 실행" title="다시 실행">↷</button>
+            <button className="icon" onClick={undo} disabled={!past.length} aria-label="되돌리기" title="되돌리기">↶</button>
+            <button className="icon" onClick={redo} disabled={!future.length} aria-label="다시 실행" title="다시 실행">↷</button>
             <button onClick={() => { dispatch({ type: "clear" }); setSaved(false); }} disabled={!strokes.length}>전체 지우기</button>
           </div>
+          <span className={full ? "stroke-count full" : "stroke-count"}
+            title={full ? "획을 다 썼습니다. 되돌리거나 지우고 다시 그리세요" : `한 마법진에 획 ${MAX_STROKES}개까지`}>
+            획 {strokes.length}/{MAX_STROKES}
+          </span>
           <div className="tool-group">
             {([ ["free", "자유"], ["mirrorX", "좌우"], ["mirrorY", "상하"], ["rotate", "회전"] ] as [Symmetry, string][]).map(([id, label]) => <button key={id} onClick={() => setSymmetry(id)} className={symmetry === id ? "on" : ""}>{label}</button>)}
             <select aria-label="회전 복사 수" value={rotationCount} disabled={symmetry !== "rotate"} onChange={(event) => setRotationCount(Number(event.target.value))}>{[2, 3, 4, 6, 8].map((count) => <option key={count}>{count}</option>)}</select>
