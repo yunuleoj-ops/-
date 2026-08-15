@@ -115,7 +115,13 @@ export default function Home() {
     return { x: Math.min(110, Math.max(-10, x)), y: Math.min(110, Math.max(-10, y)) };
   };
   const startStroke = (event: PointerEvent<SVGSVGElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // 왼쪽 버튼만 그린다. pointerdown 의 button 은 "이번에 눌린 버튼"이고 왼쪽이 0, 오른쪽이 2,
+    // 손가락과 펜 끝도 0이다. 이 줄이 없으면 오른쪽 버튼으로도 그려지고, 그 획은 컨텍스트 메뉴가
+    // 뜨는 순간 끊긴다.
+    if (event.button !== 0) return;
+    // 캡처는 실패할 수 있다(기기·드라이버에 따라 NotFoundError 를 던진다). 그때 던진 예외가
+    // 여기서 멈추면 왼쪽 버튼으로는 아예 그려지지 않는다 — 캡처는 편의지 전제가 아니다.
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* 캔버스 밖으로 나가면 획이 끊길 뿐이다 */ }
     if (tool === "eraser") {
       const target = eventPoint(event);
       dispatch({ type: "eraseAt", point: target, radius: 5 });
@@ -129,13 +135,17 @@ export default function Home() {
   };
   const addPoint = (event: PointerEvent<SVGSVGElement>) => {
     if (!active || tool === "eraser") return;
+    // 창 밖에서 버튼을 놓으면 pointerup 이 오지 않는다. 버튼이 떼어진 채 들어온 이동으로 그 사실을 안다.
+    if (event.buttons === 0) { endStroke(); return; }
     // 잉크가 떨어지면 획이 그 자리에서 멈춘다. 손을 뗄 때 통째로 버리는 것보다 이쪽이 눈에 보인다.
     if (outOfInk) return;
     const point = eventPoint(event);
     setActive((current) => current ? { ...current, points: [...current.points, point] } : null);
   };
   const endStroke = () => {
-    if (active && active.points.length > 2) {
+    // 점 두 개짜리 직선도 획이다. 빠르게 그은 짧은 선이 이동 이벤트를 두 번밖에 못 받는 기기가 있고,
+    // 예전 기준(3개 초과)에서는 그 획이 아무 말 없이 사라졌다. 탭은 아래 classifyClosure 가 걸러낸다.
+    if (active && active.points.length >= 2) {
       const points = simplify(active.points, SIMPLIFY_TOLERANCE);
       // 커밋 시 1회 판정해 동결한다(E7). 매번 다시 재면 임계 근처에서 같은 그림의 식 형태가 흔들린다.
       const closure = classifyClosure(points);
